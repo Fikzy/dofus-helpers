@@ -2,7 +2,6 @@ import ctypes
 from typing import Any
 import cv2
 import numpy
-from numpy.core.fromnumeric import ptp
 import win32api
 import win32con
 import win32gui
