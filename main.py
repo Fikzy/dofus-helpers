@@ -1,10 +1,13 @@
 import ctypes
+import os
 from typing import Any
 import cv2
 import numpy
+import psutil
 import win32api
 import win32con
 import win32gui
+import win32process
 import win32ui
 
 from dataclasses import dataclass
@@ -12,8 +15,8 @@ from pywinauto.win32structures import RECT
 from pywinauto.application import Application
 
 
-SCREENSHOT_FILE = 'tmp\screenshot.png'
-TEMPLATE_FILE = 'templates\inventory_icon.png'
+SCREENSHOT_FILE = "tmp\screenshot.png"
+TEMPLATE_FILE = "templates\inventory_icon.png"
 # TEMPLATE_FILE = 'templates\inventory_full_template.png'
 
 TITLE_BAR_H = 30
@@ -28,7 +31,12 @@ class App:
     def __post_init__(self):
         _dc = win32gui.GetDC(self.id)
         self.dc = win32ui.CreateDCFromHandle(_dc)
-        print('app_id:', self.id)
+        print("app_id:", self.id)
+
+    def get_exec_path(self):
+        _, pid = win32process.GetWindowThreadProcessId(self.id)
+        process = psutil.Process(pid)
+        return process.exe()
 
     def focus(self):
         self.window.set_focus()
@@ -43,13 +51,13 @@ class App:
             ctypes.wintypes.HWND(self.id),
             ctypes.wintypes.DWORD(DWMWA_EXTENDED_FRAME_BOUNDS),
             ctypes.byref(rect),
-            ctypes.sizeof(rect)
+            ctypes.sizeof(rect),
         )
         if standard:
             return (rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top)
         return rect
 
-    def take_screen(self, path='screenshot.png'):
+    def take_screen(self, path="screenshot.png"):
         self.focus()
         rect = self.get_rect()
         capture = self.window.capture_as_image(rect)
@@ -59,8 +67,10 @@ class App:
 
 def get_app(app_title_regex):
 
+    app = Application()
+
     try:
-        app = Application().connect(title_re=app_title_regex)
+        app.connect(title_re=app_title_regex)
     except Exception:
         return None
 
@@ -80,7 +90,7 @@ def find_inventory_loc(img, template):
     loc = numpy.where(res >= threshold)
 
     if len(loc[0]) == 0:
-        print('inventory not found')
+        print("inventory not found")
         return None
 
     return loc
@@ -93,7 +103,7 @@ def draw_temaplate_loc_on_img(img, template, loc):
     for pt in zip(*loc[::-1]):
         cv2.rectangle(img, pt, (pt[0] + w, pt[1] + h), (0, 255, 255), 2)
 
-    cv2.imwrite('tmp\detected.png', img)
+    cv2.imwrite("tmp\detected.png", img)
     # cv2.imshow('detected', img)
     # cv2.waitKey(0)
 
@@ -113,7 +123,7 @@ def draw_temaplate_loc_on_screen(app_id, template, loc):
     dc = win32gui.GetDC(app_id)
     dc_obj = win32ui.CreateDCFromHandle(dc)
 
-    while(True):
+    while True:
 
         dc_obj.Rectangle(rect)
         # Refresh the entire monitor
@@ -129,14 +139,21 @@ def draw_rect_on_app(app_id, rect):
     dc_obj.Rectangle(rect)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    app = get_app(app_title_regex='Fikzy - Dofus.*')
+    # print(findwindows.find_windows(title_re=".*"))
+
+    app = get_app(app_title_regex=".* - Dofus.*")
 
     if app is None:
-        raise SystemExit('App not found!')
+        raise SystemExit("App not found!")
 
-    app.take_screen()
+    exec_path = app.get_exec_path()
+    directory = os.path.dirname(exec_path)
+
+    print(directory)
+
+    # app.take_screen()
 
     # img = cv2.imread(SCREENSHOT_FILE, 0)
     # template = cv2.imread(TEMPLATE_FILE, 0)
