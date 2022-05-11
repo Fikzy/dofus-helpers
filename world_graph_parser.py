@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from py_dofus import d2o
 
 
-MAP_POSITIONS_FILE = os.path.join("content", "common", "MapPositions.d2o")
+MAP_POSITIONS_FILE = os.path.join("data", "common", "MapPositions.d2o")
 WORLD_GRAPH_BINARY_FILE = os.path.join("content", "maps", "world-graph.binary")
 
 
