@@ -1,6 +1,6 @@
 import os
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from py_dofus import d2o
 
 
@@ -32,24 +32,6 @@ class Transition:
     cell: int
     id: int
 
-    def __init__(
-        self,
-        type: int,
-        direction: int,
-        skill_id: int,
-        criterion: str,
-        transition_map_id: int,
-        cell: int,
-        id: int,
-    ):
-        self.type = type
-        self.direction = direction
-        self.skill_id = skill_id
-        self.criterion = criterion
-        self.transition_map_id = transition_map_id
-        self.cell = cell
-        self.id = id
-
 
 @dataclass
 class Vertex:
@@ -59,57 +41,28 @@ class Vertex:
     uid: int
     pos: tuple[int, int]
 
-    def __init__(
-        self, map_id: int, zone_id: int, vertex_uid: int, pos: tuple[int, int]
-    ):
-        self.map_id = map_id
-        self.zone_id = zone_id
-        self.uid = vertex_uid
-        self.pos = pos
-
 
 @dataclass
 class Edge:
 
-    _from: Vertex
-    _to: Vertex
-    _transitions: list[Transition]
+    start: Vertex
+    end: Vertex
+    transitions: list[Transition] = field(default_factory=list)
 
-    def __init__(self, start: Vertex, end: Vertex):
-        self._from = start
-        self._to = end
-        self._transitions = []
-
-    def add_transition(
-        self,
-        dir: int,
-        type: int,
-        skill: int,
-        criterion: str,
-        transition_map_id: int,
-        cell: int,
-        id: int,
-    ):
-        self._transitions.append(
-            Transition(type, dir, skill, criterion, transition_map_id, cell, id)
-        )
+    def add_transition(self, transition: Transition):
+        self.transitions.append(transition)
 
 
-@dataclass
 class WorlGraph:
 
-    vertices: dict[int, dict[int, Vertex]]
-    edges: dict[int, dict[int, Edge]]
-    outgoing_edges: dict[int, list[Edge]]
-    _vertex_uid: int
-    _map_positions: dict[int, dict]
+    vertices: dict[int, dict[int, Vertex]] = dict()
+    edges: dict[int, dict[int, Edge]] = dict()
+    outgoing_edges: dict[int, list[Edge]] = dict()
+
+    _vertex_uid: int = 0
+    _map_positions: dict[int, dict] = dict()
 
     def __init__(self, game_dir: str):
-
-        self.vertices = dict()
-        self.edges = dict()
-        self.outgoing_edges = dict()
-        self._vertex_uid = 0
 
         with open(os.path.join(game_dir, MAP_POSITIONS_FILE), "rb") as f:
             d2o_reader = d2o.D2OReader(f)
@@ -129,13 +82,15 @@ class WorlGraph:
 
                 for _ in range(transistion_count):
                     edge.add_transition(
-                        read_byte(f),
-                        read_byte(f),
-                        read_int(f),
-                        f.read(read_int(f)).decode("utf-8"),
-                        read_double(f),
-                        read_int(f),
-                        read_double(f),
+                        Transition(
+                            read_byte(f),
+                            read_byte(f),
+                            read_int(f),
+                            f.read(read_int(f)).decode("utf-8"),
+                            read_double(f),
+                            read_int(f),
+                            read_double(f),
+                        )
                     )
 
     def add_vertex(self, map_id: int, zone: int) -> Vertex:
