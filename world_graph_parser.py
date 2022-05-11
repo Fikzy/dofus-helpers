@@ -1,6 +1,11 @@
+import os
 import struct
 from dataclasses import dataclass
-from typing import List
+from py_dofus import d2o
+
+
+MAP_POSITIONS_FILE = os.path.join("content", "common", "MapPositions.d2o")
+WORLD_GRAPH_BINARY_FILE = os.path.join("content", "maps", "world-graph.binary")
 
 
 def read_byte(f) -> int:
@@ -52,11 +57,15 @@ class Vertex:
     _map_id: int
     _zone_id: int
     _uid: int
+    _pos: tuple[int, int]
 
-    def __init__(self, map_id: int, zone_id: int, vertex_uid: int):
+    def __init__(
+        self, map_id: int, zone_id: int, vertex_uid: int, pos: tuple[int, int]
+    ):
         self._map_id = map_id
         self._zone_id = zone_id
         self._uid = vertex_uid
+        self._pos = pos
 
 
 @dataclass
@@ -64,7 +73,7 @@ class Edge:
 
     _from: Vertex
     _to: Vertex
-    _transitions: List[Transition]
+    _transitions: list[Transition]
 
     def __init__(self, start: Vertex, end: Vertex):
         self._from = start
@@ -91,17 +100,23 @@ class WorlGraph:
 
     _vertices: dict[int, dict[int, Vertex]]
     _edges: dict[int, dict[int, Edge]]
-    _outgoing_edges: dict[int, List[Edge]]
+    _outgoing_edges: dict[int, list[Edge]]
     _vertex_uid: int
+    _map_positions: dict[int, dict]
 
-    def __init__(self, path: str):
+    def __init__(self, game_dir: str):
 
         self._vertices = dict()
         self._edges = dict()
         self._outgoing_edges = dict()
         self._vertex_uid = 0
 
-        with open(path, "rb") as f:
+        with open(os.path.join(game_dir, MAP_POSITIONS_FILE), "rb") as f:
+            d2o_reader = d2o.D2OReader(f)
+            d2o_data = d2o_reader.get_objects()
+            self._map_positions = {value["id"]: value for value in d2o_data}
+
+        with open(os.path.join(game_dir, WORLD_GRAPH_BINARY_FILE), "rb") as f:
 
             edge_count = read_int(f)
 
@@ -130,7 +145,10 @@ class WorlGraph:
 
         if zone not in self._vertices[map_id]:
             self._vertex_uid += 1
-            self._vertices[map_id][zone] = Vertex(map_id, zone, self._vertex_uid)
+            map_data = self._map_positions.get(map_id)
+            self._vertices[map_id][zone] = Vertex(
+                map_id, zone, self._vertex_uid, (map_data["posX"], map_data["posY"])
+            )
 
         return self._vertices[map_id][zone]
 
@@ -169,9 +187,10 @@ class WorlGraph:
 
 def main():
 
-    graph = WorlGraph("world-graph.binary")
-    print(len(graph._vertices))
-    print(len(graph._edges))
+    graph = WorlGraph("fake_dofus_dir")
+
+    v = graph._vertices.get(96338944)[1]
+    print(v)
 
 
 if __name__ == "__main__":
