@@ -24,13 +24,13 @@ def read_double(f) -> int:
 @dataclass
 class Transition:
 
-    _type: int
-    _direction: int
-    _skill_id: int
-    _criterion: str
-    _transition_map_id: int
-    _cell: int
-    _id: int
+    type: int
+    direction: int
+    skill_id: int
+    criterion: str
+    transition_map_id: int
+    cell: int
+    id: int
 
     def __init__(
         self,
@@ -42,30 +42,30 @@ class Transition:
         cell: int,
         id: int,
     ):
-        self._type = type
-        self._direction = direction
-        self._skill_id = skill_id
-        self._criterion = criterion
-        self._transition_map_id = transition_map_id
-        self._cell = cell
-        self._id = id
+        self.type = type
+        self.direction = direction
+        self.skill_id = skill_id
+        self.criterion = criterion
+        self.transition_map_id = transition_map_id
+        self.cell = cell
+        self.id = id
 
 
 @dataclass
 class Vertex:
 
-    _map_id: int
-    _zone_id: int
-    _uid: int
-    _pos: tuple[int, int]
+    map_id: int
+    zone_id: int
+    uid: int
+    pos: tuple[int, int]
 
     def __init__(
         self, map_id: int, zone_id: int, vertex_uid: int, pos: tuple[int, int]
     ):
-        self._map_id = map_id
-        self._zone_id = zone_id
-        self._uid = vertex_uid
-        self._pos = pos
+        self.map_id = map_id
+        self.zone_id = zone_id
+        self.uid = vertex_uid
+        self.pos = pos
 
 
 @dataclass
@@ -98,17 +98,17 @@ class Edge:
 @dataclass
 class WorlGraph:
 
-    _vertices: dict[int, dict[int, Vertex]]
-    _edges: dict[int, dict[int, Edge]]
-    _outgoing_edges: dict[int, list[Edge]]
+    vertices: dict[int, dict[int, Vertex]]
+    edges: dict[int, dict[int, Edge]]
+    outgoing_edges: dict[int, list[Edge]]
     _vertex_uid: int
     _map_positions: dict[int, dict]
 
     def __init__(self, game_dir: str):
 
-        self._vertices = dict()
-        self._edges = dict()
-        self._outgoing_edges = dict()
+        self.vertices = dict()
+        self.edges = dict()
+        self.outgoing_edges = dict()
         self._vertex_uid = 0
 
         with open(os.path.join(game_dir, MAP_POSITIONS_FILE), "rb") as f:
@@ -140,24 +140,23 @@ class WorlGraph:
 
     def add_vertex(self, map_id: int, zone: int) -> Vertex:
 
-        if map_id not in self._vertices:
-            self._vertices[map_id] = dict()
+        if map_id not in self.vertices:
+            self.vertices[map_id] = dict()
 
-        if zone not in self._vertices[map_id]:
+        if zone not in self.vertices[map_id]:
             self._vertex_uid += 1
             map_data = self._map_positions.get(map_id)
-            self._vertices[map_id][zone] = Vertex(
-                map_id, zone, self._vertex_uid, (map_data["posX"], map_data["posY"])
-            )
+            coords = map_data["posX"], map_data["posY"]
+            self.vertices[map_id][zone] = Vertex(map_id, zone, self._vertex_uid, coords)
 
-        return self._vertices[map_id][zone]
+        return self.vertices[map_id][zone]
 
     def get_edge(self, start: Vertex, end: Vertex) -> Edge:
 
-        if start._uid not in self._edges:
+        if start.uid not in self.edges:
             return None
 
-        return self._edges[start._uid].get(end._uid)
+        return self.edges[start.uid].get(end.uid)
 
     def add_edge(self, start: Vertex, end: Vertex) -> Edge:
 
@@ -169,27 +168,27 @@ class WorlGraph:
             return None
 
         edge = Edge(start, end)
-        if start._uid not in self._edges:
-            self._edges[start._uid] = dict()
-        self._edges[start._uid][end._uid] = edge
+        if start.uid not in self.edges:
+            self.edges[start.uid] = dict()
+        self.edges[start.uid][end.uid] = edge
 
-        outgoing = self._outgoing_edges.get(start._uid)
+        outgoing = self.outgoing_edges.get(start.uid)
         if not outgoing:
             outgoing = []
-            self._outgoing_edges[start._uid] = outgoing
+            self.outgoing_edges[start.uid] = outgoing
 
         outgoing.append(edge)
         return edge
 
     def does_vertex_exist(self, v: Vertex) -> bool:
-        return self._vertices[v._map_id][v._zone_id] is not None
+        return self.vertices[v.map_id][v.zone_id] is not None
 
 
 def main():
 
     graph = WorlGraph("fake_dofus_dir")
 
-    v = graph._vertices.get(96338944)[1]
+    v = graph.vertices.get(96338944)[1]
     print(v)
 
 
