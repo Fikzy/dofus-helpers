@@ -1,3 +1,5 @@
+import sys
+
 import qdarktheme
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIntValidator
@@ -11,6 +13,8 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+sys.coinit_flags = 2
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -18,8 +22,10 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Dofus Helper")
         # self.setWindowOpacity(0.5)
-        # self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setMinimumSize(50, 50)
+        self.setWindowFlags(
+            Qt.WindowType.WindowStaysOnTopHint
+        )  # Qt.WindowType.FramelessWindowHint
+        self.setFixedSize(250, 100)
         self.move(0, 0)
 
         self.setStyleSheet(qdarktheme.load_stylesheet())
@@ -45,8 +51,8 @@ class MainWindow(QMainWindow):
         go_to_dest_button = QPushButton("Go!")
         go_to_dest_button.clicked.connect(
             lambda: self.go_to_dest(
-                int(map_id_input.text()),
-                (int(dest_x_input.text()), int(dest_y_input.text())),
+                map_id_input.text(),
+                (dest_x_input.text(), dest_y_input.text()),
             )
         )
 
@@ -65,7 +71,7 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(container)
 
-    def go_to_dest(self, map_id: int, dest: tuple[int, int]):
+    def go_to_dest(self, map_id: str, dest: tuple[str, str]):
         print(f"map_id: {map_id}, dest: {dest}")
 
 
