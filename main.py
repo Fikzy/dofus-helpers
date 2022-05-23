@@ -14,7 +14,8 @@ def main(argv: list[str]):
 
     while True:
         if handler.is_maximized():
-            handler.draw_rect(handler.get_game_bounds())
+            handler.draw_rect(handler.get_game_bounds(), (255, 0, 0))
+            handler.draw_rect(handler.get_move_zones(), (0, 0, 255))
         sleep(0.05)
 
     # Load game data

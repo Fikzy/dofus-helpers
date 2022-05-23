@@ -63,9 +63,9 @@ class ExecHandler:
         client_rect = win32structures.RECT(*win32gui.GetClientRect(self.hwnd))
         return self.get_rect().height() - client_rect.height()
 
-    def draw_rect(self, rect: win32structures.RECT):
+    def draw_rect(self, rect: win32structures.RECT, color: tuple[int, int, int]):
         dc_handle = win32gui.GetDC(self.hwnd)
-        brush = win32gui.CreateSolidBrush(win32api.RGB(255, 0, 0))
+        brush = win32gui.CreateSolidBrush(win32api.RGB(*color))
         win32gui.SelectObject(dc_handle, brush)
         win32gui.FrameRect(
             dc_handle, (rect.left, rect.top, rect.right, rect.bottom), brush

@@ -6,6 +6,11 @@ from pywinauto import win32structures
 
 import exec_handler
 
+LATERAL_ZONE_COEF = 32 / 1350
+TOP_ZONE_COEF = 18 / 1080
+BOTTOM_ZONE_COEF = 145 / 1080
+BOTTOM_CLICKABLE_ZONE_COEF = 24 / 1080
+
 
 class DofusHandler(exec_handler.ExecHandler):
 
@@ -42,3 +47,38 @@ class DofusHandler(exec_handler.ExecHandler):
             bounds = (0, h_diff / 2, rect.width(), rect.height() - h_diff / 2)
 
         return win32structures.RECT(*bounds)
+
+    def get_move_zones(self) -> win32structures.RECT:
+        bounds = self.get_game_bounds()
+        lateral = int(bounds.width() * LATERAL_ZONE_COEF)
+        top = int(bounds.height() * TOP_ZONE_COEF)
+        bottom = int(bounds.height() * BOTTOM_ZONE_COEF)
+
+        zones = win32structures.RECT(bounds)
+        zones.left += lateral
+        zones.right -= lateral
+        zones.top += top
+        zones.bottom -= bottom
+
+        return zones
+
+    def move_left(self):
+        bounds = self.get_game_bounds()
+        lateral_zone = int(bounds.width() * LATERAL_ZONE_COEF)
+        self.click(bounds.left + lateral_zone / 2, bounds.height() / 2)
+
+    def move_right(self):
+        bounds = self.get_game_bounds()
+        lateral_zone = int(bounds.width() * 32 / 1350)
+        self.click(bounds.right - lateral_zone / 2, bounds.height() / 2)
+
+    def move_up(self):
+        bounds = self.get_game_bounds()
+        top_zone = int(bounds.height() * TOP_ZONE_COEF)
+        self.click(bounds.width() / 2, bounds.top + top_zone / 2)
+
+    def move_down(self):
+        bounds = self.get_game_bounds()
+        bottom_zone = int(bounds.height() * BOTTOM_ZONE_COEF)
+        clickable_zone = int(bounds.height() * BOTTOM_CLICKABLE_ZONE_COEF)
+        self.click(bounds.width() / 2, bounds.bottom - bottom_zone + clickable_zone / 2)
