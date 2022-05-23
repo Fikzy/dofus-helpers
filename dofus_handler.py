@@ -82,3 +82,6 @@ class DofusHandler(exec_handler.ExecHandler):
         bottom_zone = int(bounds.height() * BOTTOM_ZONE_COEF)
         clickable_zone = int(bounds.height() * BOTTOM_CLICKABLE_ZONE_COEF)
         self.click(bounds.width() / 2, bounds.bottom - bottom_zone + clickable_zone / 2)
+
+    def go_to_dest(self, map_id: str, dest: tuple[str, str]):
+        print(f"map_id: {map_id}, dest: {dest}")
