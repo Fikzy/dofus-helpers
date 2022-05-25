@@ -1,3 +1,4 @@
+from tkinter import EXTENDED
 from numpy import rec
 import win32api
 import win32con
@@ -6,10 +7,19 @@ from pywinauto import win32structures
 
 import exec_handler
 
-MOVE_ZONE_LATERAL_COEF = 32 / 1350
-MOVE_ZONE_TOP_COEF = 18 / 1080
-MOVE_ZONE_BOTTOM_COEF = 145 / 1080
-MOVE_ZONE_BOTTOM_CLICKABLE_COEF = 24 / 1080
+GAME_REF_WIDTH = 1350
+GAME_REF_HEIGHT = 1080
+
+MOVE_ZONE_LATERAL_COEF = 32 / GAME_REF_WIDTH
+MOVE_ZONE_TOP_COEF = 18 / GAME_REF_HEIGHT
+MOVE_ZONE_BOTTOM_COEF = 145 / GAME_REF_HEIGHT
+MOVE_ZONE_BOTTOM_CLICKABLE_COEF = 24 / GAME_REF_HEIGHT
+
+MAP_COORD_TL_COEFS = (15 / GAME_REF_WIDTH, 46 / GAME_REF_HEIGHT)
+MAP_COORD_BR_COEFS = (131 / GAME_REF_WIDTH, 79 / GAME_REF_HEIGHT)
+
+GAME_REF_RATIO = 1.25
+GAME_EXTENDED_REF_RATIO = 1.93
 
 
 class DofusHandler(exec_handler.ExecHandler):
@@ -34,19 +44,32 @@ class DofusHandler(exec_handler.ExecHandler):
 
     def get_game_bounds(self) -> win32structures.RECT:
         rect = win32structures.RECT(*win32gui.GetClientRect(self.hwnd))
-        ref_ratio = 1.25
         aspect_ratio = rect.width() / rect.height()
 
-        if aspect_ratio > ref_ratio:
-            width = rect.height() * 1.25
+        if aspect_ratio > GAME_REF_RATIO:
+            width = rect.height() * GAME_REF_RATIO
             w_diff = rect.width() - width
             bounds = (w_diff / 2, 0, rect.width() - w_diff / 2, rect.height())
         else:
-            height = rect.width() / 1.25
+            height = rect.width() / GAME_REF_RATIO
             h_diff = rect.height() - height
             bounds = (0, h_diff / 2, rect.width(), rect.height() - h_diff / 2)
 
         return win32structures.RECT(*bounds)
+
+    def get_game_extended_bounds(self):
+        rect = win32structures.RECT(*win32gui.GetClientRect(self.hwnd))
+        aspect_ratio = rect.width() / rect.height()
+
+        if aspect_ratio > GAME_EXTENDED_REF_RATIO:
+            bounds = win32structures.RECT(rect)
+            width = int(rect.height() * GAME_EXTENDED_REF_RATIO)
+            w_diff = rect.width() - width
+            bounds.left = w_diff // 2
+            bounds.right -= w_diff // 2
+            return bounds
+
+        return rect
 
     def get_move_zones(self) -> win32structures.RECT:
         bounds = self.get_game_bounds()
@@ -61,6 +84,16 @@ class DofusHandler(exec_handler.ExecHandler):
         zones.bottom -= bottom
 
         return zones
+
+    def get_map_coordinates_bounds(self) -> win32structures.RECT:
+        bounds = self.get_game_bounds()
+        extended_bounds = self.get_game_extended_bounds()
+        return win32structures.RECT(
+            extended_bounds.left + bounds.width() * MAP_COORD_TL_COEFS[0],
+            bounds.top + bounds.height() * MAP_COORD_TL_COEFS[1],
+            extended_bounds.left + bounds.width() * MAP_COORD_BR_COEFS[0],
+            bounds.top + bounds.height() * MAP_COORD_BR_COEFS[1],
+        )
 
     def move_left(self):
         bounds = self.get_game_bounds()
