@@ -65,23 +65,35 @@ class DofusHandler(exec_handler.ExecHandler):
     def move_left(self):
         bounds = self.get_game_bounds()
         lateral_zone = int(bounds.width() * LATERAL_ZONE_COEF)
-        self.click(bounds.left + lateral_zone / 2, bounds.height() / 2)
+        self.click(
+            bounds.left + lateral_zone / 2,
+            bounds.top + bounds.height() / 2,
+        )
 
     def move_right(self):
         bounds = self.get_game_bounds()
-        lateral_zone = int(bounds.width() * 32 / 1350)
-        self.click(bounds.right - lateral_zone / 2, bounds.height() / 2)
+        lateral_zone = int(bounds.width() * LATERAL_ZONE_COEF)
+        self.click(
+            bounds.right - lateral_zone / 2,
+            bounds.top + bounds.height() / 2,
+        )
 
     def move_up(self):
         bounds = self.get_game_bounds()
         top_zone = int(bounds.height() * TOP_ZONE_COEF)
-        self.click(bounds.width() / 2, bounds.top + top_zone / 2)
+        self.click(
+            bounds.left + bounds.width() / 2,
+            bounds.top + top_zone / 2,
+        )
 
     def move_down(self):
         bounds = self.get_game_bounds()
         bottom_zone = int(bounds.height() * BOTTOM_ZONE_COEF)
         clickable_zone = int(bounds.height() * BOTTOM_CLICKABLE_ZONE_COEF)
-        self.click(bounds.width() / 2, bounds.bottom - bottom_zone + clickable_zone / 2)
+        self.click(
+            bounds.left + bounds.width() / 2,
+            bounds.bottom - bottom_zone + clickable_zone / 2,
+        )
 
     def go_to_dest(self, map_id: str, dest: tuple[str, str]):
         print(f"map_id: {map_id}, dest: {dest}")
