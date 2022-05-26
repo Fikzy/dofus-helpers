@@ -1,8 +1,8 @@
-from tkinter import EXTENDED
-from numpy import rec
+import pytesseract
 import win32api
 import win32con
 import win32gui
+from PIL import ImageOps
 from pywinauto import win32structures
 
 import exec_handler
@@ -15,7 +15,7 @@ MOVE_ZONE_TOP_COEF = 18 / GAME_REF_HEIGHT
 MOVE_ZONE_BOTTOM_COEF = 145 / GAME_REF_HEIGHT
 MOVE_ZONE_BOTTOM_CLICKABLE_COEF = 24 / GAME_REF_HEIGHT
 
-MAP_COORD_TL_COEFS = (15 / GAME_REF_WIDTH, 46 / GAME_REF_HEIGHT)
+MAP_COORD_TL_COEFS = (18 / GAME_REF_WIDTH, 53 / GAME_REF_HEIGHT)
 MAP_COORD_BR_COEFS = (131 / GAME_REF_WIDTH, 79 / GAME_REF_HEIGHT)
 
 GAME_REF_RATIO = 1.25
@@ -127,6 +127,22 @@ class DofusHandler(exec_handler.ExecHandler):
             bounds.left + bounds.width() / 2,
             bounds.bottom - bottom_zone + clickable_zone / 2,
         )
+
+    def read_map_coordinates(self):
+        """
+        Read map coordinates from screen using Tesseract.
+        Not perfect but usable for now. WIP.
+        """
+        img = self.capture_client(self.get_map_coordinates_bounds())
+
+        img = ImageOps.grayscale(img)
+        img = img.point(lambda p: 255 if p >= 228 else 0)  # threshold
+
+        # pad image to center text
+        img = ImageOps.pad(img, size=(img.width, img.height + 9), centering=(0, 0.75))
+        img = ImageOps.pad(img, size=(img.width + 10, img.height), centering=(1, 0))
+
+        return pytesseract.image_to_string(img)
 
     def go_to_dest(self, map_id: str, dest: tuple[str, str]):
         print(f"map_id: {map_id}, dest: {dest}")
