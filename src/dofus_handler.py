@@ -1,3 +1,5 @@
+import struct
+
 import pytesseract
 import win32api
 import win32con
@@ -6,6 +8,7 @@ from PIL import ImageOps
 from pywinauto import win32structures
 
 import exec_handler
+import read_write_memory
 
 GAME_REF_WIDTH = 1350
 GAME_REF_HEIGHT = 1080
@@ -20,6 +23,13 @@ MAP_COORD_BR_COEFS = (131 / GAME_REF_WIDTH, 79 / GAME_REF_HEIGHT)
 
 GAME_REF_RATIO = 1.25
 GAME_EXTENDED_REF_RATIO = 1.93
+
+# MEMORY_ADDRESS_MAP_ID = 0x0A738B98
+# MEMORY_ADDRESS_MAP_ID = 0x1507F8C0
+MEMORY_ADDRESS_MAP_ID = 0x0C0861C0
+
+# ebx + 30
+# 19653BD8
 
 
 class DofusHandler(exec_handler.ExecHandler):
@@ -143,6 +153,22 @@ class DofusHandler(exec_handler.ExecHandler):
         img = ImageOps.pad(img, size=(img.width + 10, img.height), centering=(1, 0))
 
         return pytesseract.image_to_string(img)
+
+    def get_map_id(self) -> int:
+
+        rwm = read_write_memory.ReadWriteMemory()
+        process = rwm.get_process_by_id(self.get_pid())
+        process.open()
+
+        map_id_pointer = process.get_pointer(0x0110C86C, [0xA8C])
+        rb = process.readByte(map_id_pointer, length=8)
+
+        process.close()
+
+        rb = "".join([b.lstrip(r"0x").rjust(2, "0") for b in rb])
+        rb = bytearray.fromhex(rb)
+
+        return int(struct.unpack("d", rb)[0])
 
     def go_to_dest(self, map_id: str, dest: tuple[str, str]):
         print(f"map_id: {map_id}, dest: {dest}")
