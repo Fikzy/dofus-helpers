@@ -8,6 +8,7 @@ import win32con
 import win32gui
 import win32process
 import win32ui
+from PIL import Image
 from pywinauto import win32structures
 
 
@@ -102,9 +103,52 @@ class ExecHandler:
     def maximize(self):
         win32gui.ShowWindow(self.hwnd, win32con.SW_RESTORE)
 
-    def screenshot(self, file_path: str):
-        self.focus()
-        rect = self.get_rect()
-        capture = self.window.capture_as_image(rect)
-        capture.save(file_path)
-        print(f'screenshot saved at: "{file_path}"')
+    def capture_client(self, rect: win32structures.RECT = None) -> Image.Image:
+        if self.is_minimized():
+            print("Window must not be minimized!")
+            return
+
+        ctypes.windll.user32.SetProcessDPIAware()
+        client_rect = win32structures.RECT(*win32gui.GetClientRect(self.hwnd))
+
+        hwnd_dc = win32gui.GetWindowDC(self.hwnd)
+        mfc_dc = win32ui.CreateDCFromHandle(hwnd_dc)
+        save_dc = mfc_dc.CreateCompatibleDC()
+
+        save_bitmap = win32ui.CreateBitmap()
+        save_bitmap.CreateCompatibleBitmap(
+            mfc_dc,
+            client_rect.width(),
+            client_rect.height(),
+        )
+
+        save_dc.SelectObject(save_bitmap)
+
+        result = ctypes.windll.user32.PrintWindow(self.hwnd, save_dc.GetSafeHdc(), 1)
+
+        bmp_info = save_bitmap.GetInfo()
+        bmp_data = save_bitmap.GetBitmapBits(True)
+
+        img = Image.frombuffer(
+            "RGB",
+            (bmp_info["bmWidth"], bmp_info["bmHeight"]),
+            bmp_data,
+            "raw",
+            "BGRX",
+            0,
+            1,
+        )
+
+        win32gui.DeleteObject(save_bitmap.GetHandle())
+        save_dc.DeleteDC()
+        mfc_dc.DeleteDC()
+        win32gui.ReleaseDC(self.hwnd, hwnd_dc)
+
+        if result == 1:  # PrintWindow Succeeded
+            if rect:
+                return img.crop(
+                    box=(rect.left, rect.top, rect.right, rect.bottom),
+                )
+            return img
+
+        return None
