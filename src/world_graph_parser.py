@@ -1,8 +1,8 @@
 import os
 import struct
 from dataclasses import dataclass, field
-from py_dofus import d2o
 
+from py_dofus import d2o
 
 MAP_POSITIONS_FILE = os.path.join("data", "common", "MapPositions.d2o")
 WORLD_GRAPH_BINARY_FILE = os.path.join("content", "maps", "world-graph.binary")
@@ -40,6 +40,10 @@ class Vertex:
     zone_id: int
     uid: int
     pos: tuple[int, int]
+    map_data: dict
+
+    def __hash__(self) -> int:
+        return self.uid
 
 
 @dataclass
@@ -58,6 +62,8 @@ class WorlGraph:
     vertices: dict[int, dict[int, Vertex]] = dict()
     edges: dict[int, dict[int, Edge]] = dict()
     outgoing_edges: dict[int, list[Edge]] = dict()
+
+    pos_to_vertex: dict[tuple[int, int], dict[int, Vertex]] = dict()
 
     _vertex_uid: int = 0
     _map_positions: dict[int, dict] = dict()
@@ -93,6 +99,13 @@ class WorlGraph:
                         )
                     )
 
+    def get_vertex(self, map_id: int, zone: int) -> Vertex:
+
+        if map_id not in self.vertices:
+            return None
+
+        return self.vertices[map_id].get(zone)
+
     def add_vertex(self, map_id: int, zone: int) -> Vertex:
 
         if map_id not in self.vertices:
@@ -100,9 +113,17 @@ class WorlGraph:
 
         if zone not in self.vertices[map_id]:
             self._vertex_uid += 1
+
             map_data = self._map_positions.get(map_id)
-            coords = map_data["posX"], map_data["posY"]
-            self.vertices[map_id][zone] = Vertex(map_id, zone, self._vertex_uid, coords)
+            pos = int(map_data["posX"]), int(map_data["posY"])
+
+            vertex = Vertex(map_id, zone, self._vertex_uid, pos, map_data)
+
+            if pos not in self.pos_to_vertex:
+                self.pos_to_vertex[pos] = dict()
+            self.pos_to_vertex[pos][zone] = vertex
+
+            self.vertices[map_id][zone] = vertex
 
         return self.vertices[map_id][zone]
 
