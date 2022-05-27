@@ -1,7 +1,7 @@
 import functools
 from dataclasses import dataclass
 
-from world_graph_parser import Edge, Vertex, WorlGraph
+from world_graph import Edge, Vertex, WorlGraph
 
 HEURISTIC_SCALE = 1
 INDOOR_WEIGHT = 0
@@ -138,10 +138,17 @@ def find_path(
     graph: WorlGraph, start_map_id: int, dest_pos: tuple[int, int]
 ) -> list[tuple[int, int]]:
 
-    # take first found for now
-    start = next(iter(graph.vertices.get(start_map_id).values()))
+    start_map_data = graph.map_positions.get(start_map_id)
+    if start_map_data is None:
+        return None
+
+    start = graph.vertices.get(start_map_id).get(start_map_data["worldMap"])
+    if start is None:
+        return None
 
     dest_vertices = graph.pos_to_vertex.get(dest_pos)
+    if dest_vertices is None:
+        return None
 
     linked_zone = 1
     for _ in range(100):  # not sure how many zones there are

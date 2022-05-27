@@ -13,7 +13,7 @@ from pywinauto import win32structures
 import exec_handler
 import pathfinding
 import read_write_memory
-import world_graph_parser
+from world_graph import WorlGraph
 
 GAME_REF_WIDTH = 1350
 GAME_REF_HEIGHT = 1080
@@ -39,14 +39,14 @@ MEMORY_ADDRESS_MAP_ID = 0x0C0861C0
 
 class DofusHandler(exec_handler.ExecHandler):
 
-    world_graph: world_graph_parser.WorlGraph
+    world_graph: WorlGraph
 
     def __init__(self):
         super().__init__(".* - Dofus .*")
 
         exec_path = self.get_path()
         game_directory = os.path.dirname(exec_path)
-        self.world_graph = world_graph_parser.WorlGraph(game_directory)
+        self.world_graph = WorlGraph(game_directory)
 
     def click(self, x: int, y: int, button: str = "left"):
         l_param = win32api.MAKELONG(int(x), int(y))

@@ -1,6 +1,8 @@
+import json
 import os
 import struct
 from dataclasses import dataclass, field
+import sys
 
 from py_dofus import d2o
 
@@ -63,17 +65,17 @@ class WorlGraph:
     edges: dict[int, dict[int, Edge]] = dict()
     outgoing_edges: dict[int, list[Edge]] = dict()
 
+    map_positions: dict[int, dict] = dict()
     pos_to_vertex: dict[tuple[int, int], dict[int, Vertex]] = dict()
 
     _vertex_uid: int = 0
-    _map_positions: dict[int, dict] = dict()
 
     def __init__(self, game_dir: str):
 
         with open(os.path.join(game_dir, MAP_POSITIONS_FILE), "rb") as f:
             d2o_reader = d2o.D2OReader(f)
             d2o_data = d2o_reader.get_objects()
-            self._map_positions = {value["id"]: value for value in d2o_data}
+            self.map_positions = {value["id"]: value for value in d2o_data}
 
         with open(os.path.join(game_dir, WORLD_GRAPH_BINARY_FILE), "rb") as f:
 
@@ -114,7 +116,7 @@ class WorlGraph:
         if zone not in self.vertices[map_id]:
             self._vertex_uid += 1
 
-            map_data = self._map_positions.get(map_id)
+            map_data = self.map_positions.get(map_id)
             pos = int(map_data["posX"]), int(map_data["posY"])
 
             vertex = Vertex(map_id, zone, self._vertex_uid, pos, map_data)
@@ -162,10 +164,15 @@ class WorlGraph:
 
 def main():
 
-    graph = WorlGraph("fake_dofus_dir")
+    if len(sys.argv) > 1:
+        graph = WorlGraph(sys.argv[1])
+    else:
+        graph = WorlGraph("fake_dofus_dir")
 
-    v = graph.vertices.get(96338944)[1]
-    print(v)
+    vertices = graph.vertices.get(189794312)
+    for zone_id, vertex in vertices.items():
+        print(f"{zone_id}: {vertex}")
+    print()
 
 
 if __name__ == "__main__":
