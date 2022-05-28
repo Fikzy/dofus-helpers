@@ -3,11 +3,13 @@ import struct
 import threading
 import time
 
+import cv2
+import numpy
 import pytesseract
 import win32api
 import win32con
 import win32gui
-from PIL import ImageOps
+from PIL import Image
 from pywinauto import win32structures
 
 import exec_handler
@@ -47,6 +49,8 @@ class DofusHandler(exec_handler.ExecHandler):
         exec_path = self.get_path()
         game_directory = os.path.dirname(exec_path)
         self.world_graph = WorlGraph(game_directory)
+
+        os.environ["TESSDATA_PREFIX"] = "./tesseract-data"
 
     def click(self, x: int, y: int, button: str = "left"):
         l_param = win32api.MAKELONG(int(x), int(y))
@@ -150,18 +154,33 @@ class DofusHandler(exec_handler.ExecHandler):
     def read_map_coordinates(self):
         """
         Read map coordinates from screen using Tesseract.
-        Not perfect but usable for now. WIP.
         """
         img = self.capture_client(self.get_map_coordinates_bounds())
 
-        img = ImageOps.grayscale(img)
-        img = img.point(lambda p: 255 if p >= 228 else 0)  # threshold
+        img = cv2.cvtColor(numpy.array(img), cv2.COLOR_RGB2GRAY)  # convert to cv2
 
-        # pad image to center text
-        img = ImageOps.pad(img, size=(img.width, img.height + 9), centering=(0, 0.75))
-        img = ImageOps.pad(img, size=(img.width + 10, img.height), centering=(1, 0))
+        # threshold, keep values in [228; 229]
+        img[img < 228] = 0
+        img[img > 229] = 0
 
-        return pytesseract.image_to_string(img)
+        # pad to help Tesseract
+        img = cv2.copyMakeBorder(img, 10, 5, 10, 0, cv2.BORDER_CONSTANT)
+
+        # remove noise
+        img = cv2.erode(img, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)))
+
+        # invert, better for Tesseract?
+        img = 255 - img
+
+        # convert back to PIL image
+        img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+
+        config = (
+            "--psm 7 "  # treat image as single text line
+            "-c tessedit_char_whitelist=0123456789-, "
+        )
+
+        return pytesseract.image_to_string(img, lang="fra-tahoma", config=config)
 
     def get_map_id(self) -> int:
 
