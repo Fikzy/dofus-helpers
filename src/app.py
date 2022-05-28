@@ -1,3 +1,4 @@
+import argparse
 import sys
 
 import qdarktheme
@@ -79,7 +80,7 @@ def debug_move_widget(handler: dofus_handler.DofusHandler):
 
 
 class MainWindow(QtWidgets.QMainWindow):
-    def __init__(self, handler: dofus_handler.DofusHandler):
+    def __init__(self, handler: dofus_handler.DofusHandler, debug: bool = False):
         super().__init__()
 
         self.setWindowTitle("Dofus Helper")
@@ -94,7 +95,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         tab = QtWidgets.QTabWidget()
         tab.addTab(auto_travel_widget(handler), "Auto Travel")
-        tab.addTab(debug_move_widget(handler), "Debug Move")
+        if debug:
+            tab.addTab(debug_move_widget(handler), "Debug Move")
 
         self.setCentralWidget(tab)
 
@@ -102,7 +104,11 @@ class MainWindow(QtWidgets.QMainWindow):
 def run_app(argv: list[str], handler: dofus_handler.DofusHandler):
     app = QtWidgets.QApplication(argv)
 
-    window = MainWindow(handler)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", action="store_true")
+    args = parser.parse_args()
+
+    window = MainWindow(handler, args.debug)
     window.show()
 
     app.exec()
