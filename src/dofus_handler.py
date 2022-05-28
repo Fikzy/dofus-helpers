@@ -29,6 +29,8 @@ MAP_COORD_BR_COEFS = (131 / GAME_REF_WIDTH, 79 / GAME_REF_HEIGHT)
 GAME_REF_RATIO = 1.25
 GAME_EXTENDED_REF_RATIO = 1.93
 
+MOVE_TIMEOUT = 15
+
 
 class DofusHandler(exec_handler.ExecHandler):
 
@@ -142,7 +144,7 @@ class DofusHandler(exec_handler.ExecHandler):
             bounds.bottom - bottom_zone + clickable_zone / 2,
         )
 
-    def read_map_coordinates(self):
+    def read_map_coordinates(self) -> tuple[int, int]:
         """
         Read map coordinates from screen using Tesseract.
         """
@@ -171,7 +173,35 @@ class DofusHandler(exec_handler.ExecHandler):
             "-c tessedit_char_whitelist=0123456789-, "
         )
 
-        return pytesseract.image_to_string(img, lang="fra-tahoma", config=config)
+        text: str = pytesseract.image_to_string(img, lang="fra-tahoma", config=config)
+        text_elements = text.split(",")
+
+        try:
+            return int(text_elements[0].strip()), int(text_elements[1].strip())
+        except:
+            print("Failed to read map coordinates from screen.")
+
+        return None
+
+    def __move_to_adjacent_pos(self, curr: tuple[int, int], dest: tuple[int, int]):
+
+        dx = dest[0] - curr[0]
+        dy = dest[1] - curr[1]
+
+        if dx == -1:
+            print("moving left")
+            self.move_left()
+        elif dx == 1:
+            print("moving right")
+            self.move_right()
+        elif dy == -1:
+            print("moving up")
+            self.move_up()
+        elif dy == 1:
+            print("moving down")
+            self.move_down()
+        else:
+            print("Can only move to an adjacent map.")
 
     def __go_to_dest(self, map_id: int, dest: tuple[int, int]):
 
@@ -183,29 +213,31 @@ class DofusHandler(exec_handler.ExecHandler):
         if not path:
             return
 
-        path_len = len(path)
+        path.reverse()
+        goal_pos = path.pop()
 
-        for i in range(1, path_len):
-            dx = path[i][0] - path[i - 1][0]
-            dy = path[i][1] - path[i - 1][1]
+        last_move_time = time.time()
 
-            if dx == -1:
-                print("moving left")
-                self.move_left()
-            elif dx == 1:
-                print("moving right")
-                self.move_right()
-            elif dy == -1:
-                print("moving up")
-                self.move_up()
-            elif dy == 1:
-                print("moving down")
-                self.move_down()
+        while len(path) > 0:
+            read_pos = self.read_map_coordinates()
+            elapsed_since_last_move = time.time() - last_move_time
 
-            if i != path_len - 1:
-                time.sleep(7)
+            if goal_pos == read_pos or elapsed_since_last_move > MOVE_TIMEOUT:
 
-        print("done")
+                if elapsed_since_last_move > MOVE_TIMEOUT:
+                    print(
+                        "Move timed out. Make sure map coordinates are visible (settings) "
+                        "and not obstructed by any UI elements."
+                    )
+
+                prev_pos = goal_pos
+                goal_pos = path.pop()
+                last_move_time = time.time()
+                self.__move_to_adjacent_pos(prev_pos, goal_pos)
+
+            time.sleep(1)
+
+        print("Destination reached!")
 
     def go_to_dest(self, map_id: str, dest: tuple[str, str]):
 
