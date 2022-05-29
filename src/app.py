@@ -89,7 +89,8 @@ class MainWindow(QtWidgets.QMainWindow):
             QtCore.Qt.WindowType.WindowStaysOnTopHint
         )  # Qt.WindowType.FramelessWindowHint
         self.setFixedSize(250, 150)
-        self.move(0, 0)
+        handler_rect = handler.get_rect()
+        self.move(handler_rect.left, handler_rect.top)
 
         self.setStyleSheet(qdarktheme.load_stylesheet())
 
