@@ -147,6 +147,8 @@ class DofusHandler(exec_handler.ExecHandler):
     def read_map_coordinates(self) -> tuple[int, int]:
         """
         Read map coordinates from screen using Tesseract.
+
+        Subject to failure against white backgrounds: example at (-10,-19)
         """
         img = self.capture_client(self.get_map_coordinates_bounds())
 
@@ -160,7 +162,9 @@ class DofusHandler(exec_handler.ExecHandler):
         img = cv2.copyMakeBorder(img, 10, 5, 10, 0, cv2.BORDER_CONSTANT)
 
         # remove noise
-        img = cv2.erode(img, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2)))
+        img = cv2.morphologyEx(
+            img, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
+        )
 
         # invert, better for Tesseract?
         img = 255 - img
