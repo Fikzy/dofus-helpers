@@ -66,7 +66,7 @@ class WorlGraph:
     outgoing_edges: dict[int, list[Edge]] = dict()
 
     map_positions: dict[int, dict] = dict()
-    pos_to_vertex: dict[tuple[int, int], dict[int, Vertex]] = dict()
+    pos_to_vertex: dict[tuple[int, int], list[Vertex]] = dict()
 
     _vertex_uid: int = 0
 
@@ -87,7 +87,6 @@ class WorlGraph:
                 edge = self.add_edge(start, end)
 
                 transistion_count = read_int(f)
-
                 for _ in range(transistion_count):
                     edge.add_transition(
                         Transition(
@@ -122,8 +121,8 @@ class WorlGraph:
             vertex = Vertex(map_id, zone, self._vertex_uid, pos, map_data)
 
             if pos not in self.pos_to_vertex:
-                self.pos_to_vertex[pos] = dict()
-            self.pos_to_vertex[pos][zone] = vertex
+                self.pos_to_vertex[pos] = []
+            self.pos_to_vertex[pos].append(vertex)
 
             self.vertices[map_id][zone] = vertex
 
@@ -152,10 +151,10 @@ class WorlGraph:
 
         outgoing = self.outgoing_edges.get(start.uid)
         if not outgoing:
-            outgoing = []
-            self.outgoing_edges[start.uid] = outgoing
+            self.outgoing_edges[start.uid] = [edge]
+        else:
+            outgoing.append(edge)
 
-        outgoing.append(edge)
         return edge
 
     def does_vertex_exist(self, v: Vertex) -> bool:
@@ -169,10 +168,11 @@ def main():
     else:
         graph = WorlGraph("fake_dofus_dir")
 
-    vertices = graph.vertices.get(189794312)
-    for zone_id, vertex in vertices.items():
-        print(f"{zone_id}: {vertex}")
-    print()
+    vertices = graph.vertices.get(147851523)
+    for vertex in vertices.values():
+        print(vertex.uid)
+        for edge in graph.outgoing_edges.get(vertex.uid):
+            print(edge.start.pos, edge.end.pos)
 
 
 if __name__ == "__main__":

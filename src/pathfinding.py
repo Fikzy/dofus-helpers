@@ -54,10 +54,13 @@ def __search(graph: WorlGraph, start: Vertex, dest: Vertex):
             print(f"Path found in {iterations} iterations.")
             return __build_result_path(graph, current)
 
-        edges = graph.outgoing_edges[current.vertex.uid]
+        edges = graph.outgoing_edges.get(current.vertex.uid)
+
         old_len = len(open_list)
         cost = current.cost + 1
-        for edge in edges:
+
+        for edge in edges or []:
+
             if __has_valid_transition(edge):
                 existing = closed_dict.get(edge.end)
                 if not (existing is not None and cost >= existing.cost):
@@ -66,6 +69,8 @@ def __search(graph: WorlGraph, start: Vertex, dest: Vertex):
                         map_data = edge.end.map_data
                         if map_data == None:
                             print("Map doesn't exist.")
+                            continue
+
                         dist_x = abs(map_data["posX"] - dest.map_data["posX"])
                         dist_y = abs(map_data["posY"] - dest.map_data["posY"])
                         manh_dist = dist_x + dist_y
@@ -147,22 +152,17 @@ def find_path(
         return None
 
     dest_vertices = graph.pos_to_vertex.get(dest_pos)
+
     if dest_vertices is None:
         return None
 
-    linked_zone = 1
-    for _ in range(100):  # not sure how many zones there are
+    for dest_vertex in dest_vertices:
 
-        path = __search(graph, start, dest_vertices.get(linked_zone))
-        linked_zone += 1
-
+        path = __search(graph, start, dest_vertex)
         if not path:
             continue
 
-        path_coordinates: list[int, int] = []
-
-        path_coordinates.append(path[0].start.pos)
+        path_coordinates = [path[0].start.pos]
         for edge in path:
             path_coordinates.append(edge.end.pos)
-
         return path_coordinates
