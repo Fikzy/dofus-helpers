@@ -23,8 +23,8 @@ MOVE_ZONE_TOP_COEF = 18 / GAME_REF_HEIGHT
 MOVE_ZONE_BOTTOM_COEF = 145 / GAME_REF_HEIGHT
 MOVE_ZONE_BOTTOM_CLICKABLE_COEF = 24 / GAME_REF_HEIGHT
 
-MAP_COORD_TL_COEFS = (18 / GAME_REF_WIDTH, 53 / GAME_REF_HEIGHT)
-MAP_COORD_BR_COEFS = (131 / GAME_REF_WIDTH, 79 / GAME_REF_HEIGHT)
+MAP_COORD_TL_COEFS = (18 / GAME_REF_WIDTH, 51 / GAME_REF_HEIGHT)
+MAP_COORD_BR_COEFS = (200 / GAME_REF_WIDTH, 79 / GAME_REF_HEIGHT)
 
 GAME_REF_RATIO = 1.25
 GAME_EXTENDED_REF_RATIO = 1.93
@@ -144,11 +144,11 @@ class DofusHandler(exec_handler.ExecHandler):
             bounds.bottom - bottom_zone + clickable_zone / 2,
         )
 
-    def read_map_coordinates(self) -> tuple[int, int]:
+    def read_map_coordinates(self, filter_noise: bool = True) -> tuple[int, int]:
         """
         Read map coordinates from screen using Tesseract.
 
-        Subject to failure against white backgrounds: example at (-10,-19)
+        Subject to failure against white backgrounds.
         """
         img = self.capture_client(self.get_map_coordinates_bounds())
 
@@ -158,13 +158,47 @@ class DofusHandler(exec_handler.ExecHandler):
         img[img < 228] = 0
         img[img > 229] = 0
 
+        # upscale image as Tesseract prefers characters roughly 30-33 pixels tall
+        HEIGHT = 40
+        new_size = int(HEIGHT / img.shape[0] * img.shape[1]), HEIGHT
+        img = cv2.resize(img, new_size)
+
         # pad to help Tesseract
         img = cv2.copyMakeBorder(img, 10, 5, 10, 0, cv2.BORDER_CONSTANT)
 
-        # remove noise
-        img = cv2.morphologyEx(
-            img, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_RECT, (2, 2))
-        )
+        if filter_noise:
+            # binarise
+            bin_img = img.copy()
+            bin_img[bin_img != 0] = 255
+
+            MIDDLE_LINE_Y_COEF = 0.58
+            COMMA_LINE_Y_COEF = 0.79
+            COMMA_LINE_X_START_COEF = 0.15
+
+            # generate seed points on middle line
+            middle_line_y = int(img.shape[0] * MIDDLE_LINE_Y_COEF)
+            middle_x_indices = numpy.where(img[middle_line_y] > 0)[0]
+            floodfill_seeds = [(x, middle_line_y) for x in middle_x_indices]
+
+            # generate seed points on comma line
+            comma_line_y = int(img.shape[0] * COMMA_LINE_Y_COEF)
+            comma_line_x_start = int(img.shape[1] * COMMA_LINE_X_START_COEF)
+            comma_x_indices = numpy.where(img[comma_line_y] > 0)[0]
+            comma_x_indices = comma_x_indices[comma_x_indices > comma_line_x_start]
+            floodfill_seeds.extend([(x, comma_line_y) for x in comma_x_indices])
+
+            floodflags = 8
+            floodflags |= cv2.FLOODFILL_MASK_ONLY
+            floodflags |= 255 << 8
+
+            # create mask using floodfill
+            floodfill_mask = numpy.zeros(
+                (img.shape[0] + 2, img.shape[1] + 2), numpy.uint8
+            )
+            for seed in floodfill_seeds:
+                cv2.floodFill(bin_img, floodfill_mask, seed, 255, flags=floodflags)
+
+            img = cv2.bitwise_and(img, floodfill_mask[1:-1, 1:-1])
 
         # invert, better for Tesseract?
         img = 255 - img
@@ -174,7 +208,7 @@ class DofusHandler(exec_handler.ExecHandler):
 
         config = (
             "--psm 7 "  # treat image as single text line
-            "-c tessedit_char_whitelist=0123456789-, "
+            "-c tessedit_char_whitelist='0123456789-,' "
         )
 
         text: str = pytesseract.image_to_string(img, lang="fra-tahoma", config=config)
