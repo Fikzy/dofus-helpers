@@ -72,7 +72,7 @@ class ExecHandler:
             dc_handle, (rect.left, rect.top, rect.right, rect.bottom), brush
         )
 
-    def get_pid(self):
+    def get_pid(self) -> int:
         _, pid = win32process.GetWindowThreadProcessId(self.hwnd)
         return pid
 
