@@ -145,17 +145,20 @@ def scan_ex(
 
     VirtualQueryEx(h_proc, begin, byref(mbi), sizeof(mbi))
 
-    for curr in range(begin, begin + size, mbi.RegionSize):
+    curr = begin
+    while curr < begin + size:
 
         if not VirtualQueryEx(h_proc, curr, byref(mbi), sizeof(mbi)):
             print(
                 f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) VirtualQueryEx failed"
             )
+            curr += mbi.RegionSize
             continue
         if mbi.State != MEM_COMMIT or mbi.Protect == PAGE_NOACCESS:
             print(
                 f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) State != MEM_COMMIT or Protect == PAGE_NOACCESS"
             )
+            curr += mbi.RegionSize
             continue
 
         buffer = (c_ubyte * mbi.RegionSize)()
@@ -204,6 +207,8 @@ def scan_ex(
                 f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) VirtualProtectEx failed"
             )
 
+        curr += mbi.RegionSize
+
     return match
 
 
@@ -226,17 +231,17 @@ if __name__ == "__main__":
 
     handler = exec_handler.ExecHandler(".* - Dofus .*")
 
-    mod_entry = get_module(handler.get_pid(), b"Adobe AIR.dll")
-    print("module name:", mod_entry.szModule.decode("utf-8"))
-    base_addr = cast(mod_entry.modBaseAddr, c_void_p).value
-    print(
-        "module base address:",
-        base_addr,
-        hex(base_addr),
-        "->",
-        hex(base_addr + mod_entry.modBaseSize),
-    )
-    print("module base size:", mod_entry.modBaseSize)
+    # mod_entry = get_module(handler.get_pid(), b"Adobe AIR.dll")
+    # print("module name:", mod_entry.szModule.decode("utf-8"))
+    # base_addr = cast(mod_entry.modBaseAddr, c_void_p).value
+    # print(
+    #     "module base address:",
+    #     base_addr,
+    #     hex(base_addr),
+    #     "->",
+    #     hex(base_addr + mod_entry.modBaseSize),
+    # )
+    # print("module base size:", mod_entry.modBaseSize)
 
     rwm = read_write_memory.ReadWriteMemory()
     process = rwm.get_process_by_id(handler.get_pid())
@@ -265,10 +270,10 @@ if __name__ == "__main__":
     pattern = b"\x66\x0f\xd6\x46\x68\x83"
     mask = b"xxxxxx"
 
-    # ptr = scan_ex(pattern, mask, 0, 0x0800000000000, process.handle)
+    ptr = scan_ex(pattern, mask, 0, 0x0800000000000, process.handle)
     # ptr = scan_ex(pattern, mask, 0x1C1B7000, 0x1E000, process.handle)
     # ptr = scan_ex(pattern, mask, 0x1C000000, 0x200000, process.handle)
-    ptr = scan_mod_ex(pattern, mask, mod_entry, process.handle)
+    # ptr = scan_mod_ex(pattern, mask, mod_entry, process.handle)
     print("ptr:", hex(ptr))
 
     process.close()
