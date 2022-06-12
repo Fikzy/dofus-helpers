@@ -1,6 +1,8 @@
+import struct
+import sys
+import time
 from ctypes import *
 from ctypes.wintypes import *
-import struct
 
 import exec_handler
 import read_write_memory
@@ -244,6 +246,40 @@ def scan_mod_ex(
     )
 
 
+def jump_instruction(_from: int, _to: int) -> bytearray:
+    # 4 bytes because 32 bits
+    # signed because offset can be negative
+    # -5 (length of instruction) because offset is from next instruction
+    offset = (_from - _to - 5).to_bytes(4, sys.byteorder, signed=True)
+    return bytearray(b"\xE9") + offset
+
+
+def write_to_memory(handle: HANDLE, dest: int, src_buffer: bytearray) -> c_size_t:
+    bytes_w = c_size_t()
+    try:
+        WriteProcessMemory(
+            handle,
+            dest,
+            (c_char * len(src_buffer)).from_buffer(src_buffer),
+            len(src_buffer),
+            pointer(bytes_w),
+        )
+    except Exception as e:
+        print(e)
+    return bytes_w
+
+
+def read_double(process: read_write_memory.Process, ptr: int) -> int:
+    try:
+        rb = process.readByte(ptr, length=8)
+        rb = "".join([b.lstrip(r"0x").rjust(2, "0") for b in rb])
+        rb = bytearray.fromhex(rb)
+        return int(struct.unpack("d", rb)[0])
+    except Exception as e:
+        print(e)
+        return None
+
+
 if __name__ == "__main__":
 
     handler = exec_handler.ExecHandler(".* - Dofus .*")
@@ -264,54 +300,47 @@ if __name__ == "__main__":
     process = rwm.get_process_by_id(handler.get_pid())
     process.open()
 
-    # print(hex(base_addr + int(0x4D9E07)))  # Adobe AIR.dll + py4D9E07
-
-    # offsets = [0x0113CA28, 0x31C, 0xC, 0x8C, 0x64, 0x10, 0x94, 0xB18]
-
-    # ptr = base_addr
-    # for offset in offsets[:-1]:
-    #     print(f"{hex(ptr)} + {hex(offset)} -> ", end="")
-    #     ptr = process.read(ptr + offset)
-    #     print(hex(ptr))
-
-    # ptr += offsets[-1]
-    # print(hex(ptr))
-
-    # # map_id_pointer = process.get_pointer(0x62EE0000, offsets)
-
-    # rb = process.readByte(ptr, length=8)
-    # rb = "".join([b.lstrip(r"0x").rjust(2, "0") for b in rb])
-    # rb = bytearray.fromhex(rb)
-    # print(int(struct.unpack("d", rb)[0]))
-
     pattern = b"\x66\x0f\xd6\x46\x68\x83"
     mask = b"xxxxxx"
 
-    # ptr = scan_ex(pattern, mask, 0x1C1B7000, 0x1E000, process.handle)
-    # ptr = scan_ex(pattern, mask, 0x1C000000, 0x200000, process.handle)
-    # ptr = scan_mod_ex(pattern, mask, mod_entry, process.handle)
-
-    # ptr = scan_ex(pattern, mask, 0, 0x0800000000000, process.handle)
-    ptr = 0xA90B503
+    ptr = scan_ex(pattern, mask, 0, 0x0800000000000, process.handle)
+    # ptr = 0x23356C29
     print("ptr:", hex(ptr))
 
-    test_array = bytearray(b"\xAA\xBB\xCC\xFF")
-    buff = (c_char * len(test_array)).from_buffer(test_array)
-
-    new_mem = VirtualAllocEx(
+    new_mem_ptr: int = VirtualAllocEx(
         process.handle, None, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE
     )
 
-    print(hex(new_mem))
+    print(hex(new_mem_ptr))
+
+    inject_instr_ptr = new_mem_ptr
+    mapid_ptr = new_mem_ptr + 0x20
+
+    jump_to_injected_instr = jump_instruction(inject_instr_ptr, ptr)
+
+    injected_instr = (
+        bytearray(b"\x89\x35")
+        + (mapid_ptr).to_bytes(4, sys.byteorder)
+        + bytearray(b"\x66\x0F\xD6\x46\x68")
+        # no idea why -6 instead of +5 (next instr)
+        + jump_instruction(ptr - 6, inject_instr_ptr)
+    )
+
+    write_to_memory(process.handle, ptr, jump_to_injected_instr)
+    write_to_memory(process.handle, inject_instr_ptr, injected_instr)
+
+    time.sleep(10)
 
     try:
-        bytes_w = c_size_t()
-        WriteProcessMemory(
-            process.handle, new_mem, buff, len(test_array), pointer(bytes_w)
-        )
+        mapid_ptr = process.read(mapid_ptr) + 0x68
+        mapid = read_double(process, mapid_ptr)
+        print(mapid)
     except Exception as e:
         print(e)
 
-    VirtualFreeEx(process.handle, new_mem, 0, MEM_RELEASE)
+    time.sleep(3)
+    write_to_memory(process.handle, ptr, bytearray(pattern[:-1]))  # restore instruction
+
+    VirtualFreeEx(process.handle, new_mem_ptr, 0, MEM_RELEASE)
 
     process.close()
