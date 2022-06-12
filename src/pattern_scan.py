@@ -12,6 +12,8 @@ TH32CS_SNAPMODULE = 0x00000008
 TH32CS_SNAPMODULE32 = 0x00000010
 
 MEM_COMMIT = 0x1000
+MEM_RESERVE = 0x2000
+MEM_RELEASE = 0x8000
 PAGE_NOACCESS = 0x01
 PAGE_EXECUTE_READWRITE = 0x40
 
@@ -64,6 +66,21 @@ Module32Next = k32.Module32Next
 Module32Next.argtypes = [HANDLE, POINTER(MODULEENTRY32)]
 Module32Next.restype = BOOL
 
+## ReadProcessMemory
+ReadProcessMemory = k32.ReadProcessMemory
+ReadProcessMemory.argtypes = [HANDLE, LPCVOID, LPVOID, c_size_t, POINTER(c_size_t)]
+ReadProcessMemory.restype = BOOL
+
+## VirtualAllocEx
+VirtualAllocEx = k32.VirtualAllocEx
+VirtualAllocEx.argtypes = [HANDLE, LPVOID, c_size_t, DWORD, DWORD]
+VirtualAllocEx.restype = LPVOID
+
+## VirtualFreeEx
+VirtualFreeEx = k32.VirtualFreeEx
+VirtualFreeEx.argtypes = [HANDLE, LPVOID, c_size_t, DWORD]
+VirtualFreeEx.restype = BOOL
+
 ## VirtualQueryEx
 VirtualQueryEx = k32.VirtualQueryEx
 VirtualQueryEx.argtypes = [HANDLE, LPCVOID, POINTER(MEMORY_BASIC_INFORMATION), c_size_t]
@@ -74,10 +91,10 @@ VirtualProtectEx = k32.VirtualProtectEx
 VirtualProtectEx.argtypes = [HANDLE, LPCVOID, c_size_t, DWORD, PDWORD]
 VirtualProtectEx.restype = c_size_t
 
-## ReadProcessMemory
-ReadProcessMemory = k32.ReadProcessMemory
-ReadProcessMemory.argtypes = [HANDLE, LPCVOID, LPVOID, c_size_t, POINTER(c_size_t)]
-ReadProcessMemory.restype = BOOL
+## WriteProcessMemory
+WriteProcessMemory = k32.WriteProcessMemory
+WriteProcessMemory.argtypes = [HANDLE, LPVOID, LPCVOID, c_size_t, POINTER(c_size_t)]
+WriteProcessMemory.restype = BOOL
 
 
 def get_module(proc_id: c_ulong, mod_name: bytes) -> MODULEENTRY32:
@@ -270,10 +287,31 @@ if __name__ == "__main__":
     pattern = b"\x66\x0f\xd6\x46\x68\x83"
     mask = b"xxxxxx"
 
-    ptr = scan_ex(pattern, mask, 0, 0x0800000000000, process.handle)
     # ptr = scan_ex(pattern, mask, 0x1C1B7000, 0x1E000, process.handle)
     # ptr = scan_ex(pattern, mask, 0x1C000000, 0x200000, process.handle)
     # ptr = scan_mod_ex(pattern, mask, mod_entry, process.handle)
+
+    # ptr = scan_ex(pattern, mask, 0, 0x0800000000000, process.handle)
+    ptr = 0xA90B503
     print("ptr:", hex(ptr))
+
+    test_array = bytearray(b"\xAA\xBB\xCC\xFF")
+    buff = (c_char * len(test_array)).from_buffer(test_array)
+
+    new_mem = VirtualAllocEx(
+        process.handle, None, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE
+    )
+
+    print(hex(new_mem))
+
+    try:
+        bytes_w = c_size_t()
+        WriteProcessMemory(
+            process.handle, new_mem, buff, len(test_array), pointer(bytes_w)
+        )
+    except Exception as e:
+        print(e)
+
+    VirtualFreeEx(process.handle, new_mem, 0, MEM_RELEASE)
 
     process.close()
