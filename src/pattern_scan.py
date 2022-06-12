@@ -8,6 +8,7 @@ import exec_handler
 import read_write_memory
 
 k32 = WinDLL("kernel32", use_last_error=True)
+psapi = WinDLL("psapi")
 
 INVALID_HANDLE_VALUE = -1
 TH32CS_SNAPMODULE = 0x00000008
@@ -57,6 +58,11 @@ CreateToolhelp32Snapshot.restype = HANDLE
 CloseHandle = k32.CloseHandle
 CloseHandle.argtypes = [HANDLE]
 CloseHandle.restype = BOOL
+
+## GetMappedFileNameA
+GetMappedFileNameA = psapi.GetMappedFileNameA
+# GetMappedFileNameA.argtypes = [HANDLE, LPVOID, LPSTR, DWORD]
+GetMappedFileNameA.restype = DWORD
 
 ## Module32First
 Module32First = k32.Module32First
@@ -160,23 +166,28 @@ def scan_ex(
     bytes_read = c_ulonglong()
     old_protect = DWORD()
     mbi = MEMORY_BASIC_INFORMATION()
-    # mbi.RegionSize = 0x1000
 
     VirtualQueryEx(h_proc, begin, byref(mbi), sizeof(mbi))
 
+    name_buffer = (c_char * 256)()
+
     curr = begin
-    while curr < begin + size:
+    while curr < 0x7FFF0000:
 
         if not VirtualQueryEx(h_proc, curr, byref(mbi), sizeof(mbi)):
-            # print(
-            #     f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) VirtualQueryEx failed"
-            # )
             curr += mbi.RegionSize
             continue
         if mbi.State != MEM_COMMIT or mbi.Protect == PAGE_NOACCESS:
-            # print(
-            #     f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) State != MEM_COMMIT or Protect == PAGE_NOACCESS"
-            # )
+            curr += mbi.RegionSize
+            continue
+
+        GetMappedFileNameA(h_proc, curr, byref(name_buffer), len(name_buffer))
+        name: str = name_buffer.value.decode("utf-8")
+
+        if name:
+            print(name)
+
+        if "mswsock.dll.mui" not in name:
             curr += mbi.RegionSize
             continue
 
@@ -191,19 +202,13 @@ def scan_ex(
         ):
             print(f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize})")
 
-            result = ReadProcessMemory(
+            ReadProcessMemory(
                 h_proc,
                 mbi.BaseAddress,
                 byref(buffer),
                 mbi.RegionSize,
                 byref(bytes_read),
             )
-
-            # print(
-            #     f"read success: {result}, bytes_read: {bytes_read.value}, error: {get_last_error()}"
-            # )
-            # print(addressof(buffer))
-            # print(bytearray(buffer))
 
             VirtualProtectEx(
                 h_proc,
@@ -220,11 +225,6 @@ def scan_ex(
             if internal_addr:
                 match = curr + (internal_addr - addressof(buffer))
                 break
-
-        # else:
-        #     print(
-        #         f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) VirtualProtectEx failed"
-        #     )
 
         curr += mbi.RegionSize
 
@@ -303,8 +303,8 @@ class Scanner:
         MASK = b"xxxxxx"
 
         # scan whole memory, very slow
-        # ptr = scan_ex(PATTERN, MASK, 0, 0x0800000000000, self.process.handle)
-        ptr = 0x23356C29
+        ptr = scan_ex(PATTERN, MASK, 0, 0x0800000000000, self.process.handle)
+        # ptr = 0x23356C29
         print("ptr:", hex(ptr))
 
         new_mem_ptr: int = VirtualAllocEx(
@@ -360,6 +360,31 @@ class Scanner:
         # Free up allocations
         for ptr in self.__allocations:
             VirtualFreeEx(self.process.handle, ptr, 0, MEM_RELEASE)
+
+
+def walk_mem_maps(h_proc: HANDLE):
+
+    mbi = MEMORY_BASIC_INFORMATION()
+
+    curr = 0
+
+    buffer = (c_char * 256)()
+
+    while curr < 0x7FFF0000:
+
+        VirtualQueryEx(h_proc, curr, byref(mbi), sizeof(mbi))
+
+        if mbi.State != MEM_COMMIT or mbi.Protect == PAGE_NOACCESS:
+            curr += mbi.RegionSize
+            continue
+
+        GetMappedFileNameA(h_proc, curr, byref(buffer), len(buffer))
+
+        name: str = buffer.value.decode("utf-8")
+
+        print(f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) {name}")
+
+        curr += mbi.RegionSize
 
 
 if __name__ == "__main__":
