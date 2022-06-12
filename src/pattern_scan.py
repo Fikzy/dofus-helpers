@@ -168,15 +168,15 @@ def scan_ex(
     while curr < begin + size:
 
         if not VirtualQueryEx(h_proc, curr, byref(mbi), sizeof(mbi)):
-            print(
-                f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) VirtualQueryEx failed"
-            )
+            # print(
+            #     f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) VirtualQueryEx failed"
+            # )
             curr += mbi.RegionSize
             continue
         if mbi.State != MEM_COMMIT or mbi.Protect == PAGE_NOACCESS:
-            print(
-                f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) State != MEM_COMMIT or Protect == PAGE_NOACCESS"
-            )
+            # print(
+            #     f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) State != MEM_COMMIT or Protect == PAGE_NOACCESS"
+            # )
             curr += mbi.RegionSize
             continue
 
@@ -221,10 +221,10 @@ def scan_ex(
                 match = curr + (internal_addr - addressof(buffer))
                 break
 
-        else:
-            print(
-                f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) VirtualProtectEx failed"
-            )
+        # else:
+        #     print(
+        #         f"skipping : {hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) VirtualProtectEx failed"
+        #     )
 
         curr += mbi.RegionSize
 
@@ -254,93 +254,121 @@ def jump_instruction(_from: int, _to: int) -> bytearray:
     return bytearray(b"\xE9") + offset
 
 
-def write_to_memory(handle: HANDLE, dest: int, src_buffer: bytearray) -> c_size_t:
-    bytes_w = c_size_t()
-    try:
-        WriteProcessMemory(
-            handle,
-            dest,
-            (c_char * len(src_buffer)).from_buffer(src_buffer),
-            len(src_buffer),
-            pointer(bytes_w),
+class Scanner:
+
+    process: read_write_memory.Process
+    __allocations: list[int]
+    __injections_to_restore: list[tuple[int, bytearray]]
+
+    mapid_ptr: int
+
+    def __init__(self, process_id: int):
+        rwm = read_write_memory.ReadWriteMemory()
+
+        self.process = rwm.get_process_by_id(process_id)
+        self.process.open()
+
+        self.__allocations = []
+        self.__injections_to_restore = []
+
+        self.mapid_ptr = None
+
+    def __write_to_memory(self, dest: int, src_buffer: bytearray) -> c_size_t:
+        bytes_w = c_size_t()
+        try:
+            WriteProcessMemory(
+                self.process.handle,
+                dest,
+                (c_char * len(src_buffer)).from_buffer(src_buffer),
+                len(src_buffer),
+                pointer(bytes_w),
+            )
+        except Exception as e:
+            print(e)
+        return bytes_w
+
+    def __read_double(self, ptr: int) -> int:
+        try:
+            rb = self.process.readByte(ptr, length=8)
+            rb = "".join([b.lstrip(r"0x").rjust(2, "0") for b in rb])
+            rb = bytearray.fromhex(rb)
+            return int(struct.unpack("d", rb)[0])
+        except Exception as e:
+            print(e)
+            return None
+
+    def setup_mapid_reader(self):
+
+        PATTERN = b"\x66\x0f\xd6\x46\x68\x83"
+        MASK = b"xxxxxx"
+
+        # scan whole memory, very slow
+        # ptr = scan_ex(PATTERN, MASK, 0, 0x0800000000000, self.process.handle)
+        ptr = 0x23356C29
+        print("ptr:", hex(ptr))
+
+        new_mem_ptr: int = VirtualAllocEx(
+            self.process.handle,
+            None,
+            0x1000,
+            MEM_COMMIT | MEM_RESERVE,
+            PAGE_EXECUTE_READWRITE,
         )
-    except Exception as e:
-        print(e)
-    return bytes_w
 
+        self.__allocations.append(new_mem_ptr)
 
-def read_double(process: read_write_memory.Process, ptr: int) -> int:
-    try:
-        rb = process.readByte(ptr, length=8)
-        rb = "".join([b.lstrip(r"0x").rjust(2, "0") for b in rb])
-        rb = bytearray.fromhex(rb)
-        return int(struct.unpack("d", rb)[0])
-    except Exception as e:
-        print(e)
-        return None
+        print(hex(new_mem_ptr))
+
+        inject_instr_ptr = new_mem_ptr
+        self.mapid_ptr = new_mem_ptr + 0x20
+
+        jump_to_injected_instr = jump_instruction(inject_instr_ptr, ptr)
+
+        injected_instr = (
+            bytearray(b"\x89\x35")
+            + (self.mapid_ptr).to_bytes(4, sys.byteorder)
+            + bytearray(b"\x66\x0F\xD6\x46\x68")
+            # no idea why -6 instead of +5 (next instr)
+            + jump_instruction(ptr - 6, inject_instr_ptr)
+        )
+
+        self.__write_to_memory(ptr, jump_to_injected_instr)
+        self.__write_to_memory(inject_instr_ptr, injected_instr)
+
+        self.__injections_to_restore.append((ptr, bytearray(PATTERN[:-1])))
+
+    def read_map_id(self) -> int:
+        OFFSET = 0x68
+        try:
+            mapid_ptr = self.process.read(self.mapid_ptr)
+            if not mapid_ptr:
+                print("MapID location unknown, change map once to obtain it.")
+                return None
+            return self.__read_double(mapid_ptr + OFFSET)
+        except Exception as e:
+            print(e)
+            return None
+
+    def __del__(self):
+
+        print("Scanner destructor called")
+
+        # Restore injections
+        for ptr, buffer in self.__injections_to_restore:
+            self.__write_to_memory(ptr, buffer)
+
+        # Free up allocations
+        for ptr in self.__allocations:
+            VirtualFreeEx(self.process.handle, ptr, 0, MEM_RELEASE)
 
 
 if __name__ == "__main__":
 
     handler = exec_handler.ExecHandler(".* - Dofus .*")
 
-    # mod_entry = get_module(handler.get_pid(), b"Adobe AIR.dll")
-    # print("module name:", mod_entry.szModule.decode("utf-8"))
-    # base_addr = cast(mod_entry.modBaseAddr, c_void_p).value
-    # print(
-    #     "module base address:",
-    #     base_addr,
-    #     hex(base_addr),
-    #     "->",
-    #     hex(base_addr + mod_entry.modBaseSize),
-    # )
-    # print("module base size:", mod_entry.modBaseSize)
-
-    rwm = read_write_memory.ReadWriteMemory()
-    process = rwm.get_process_by_id(handler.get_pid())
-    process.open()
-
-    pattern = b"\x66\x0f\xd6\x46\x68\x83"
-    mask = b"xxxxxx"
-
-    ptr = scan_ex(pattern, mask, 0, 0x0800000000000, process.handle)
-    # ptr = 0x23356C29
-    print("ptr:", hex(ptr))
-
-    new_mem_ptr: int = VirtualAllocEx(
-        process.handle, None, 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE
-    )
-
-    print(hex(new_mem_ptr))
-
-    inject_instr_ptr = new_mem_ptr
-    mapid_ptr = new_mem_ptr + 0x20
-
-    jump_to_injected_instr = jump_instruction(inject_instr_ptr, ptr)
-
-    injected_instr = (
-        bytearray(b"\x89\x35")
-        + (mapid_ptr).to_bytes(4, sys.byteorder)
-        + bytearray(b"\x66\x0F\xD6\x46\x68")
-        # no idea why -6 instead of +5 (next instr)
-        + jump_instruction(ptr - 6, inject_instr_ptr)
-    )
-
-    write_to_memory(process.handle, ptr, jump_to_injected_instr)
-    write_to_memory(process.handle, inject_instr_ptr, injected_instr)
+    scanner = Scanner(handler.get_pid())
+    scanner.setup_mapid_reader()
 
     time.sleep(10)
 
-    try:
-        mapid_ptr = process.read(mapid_ptr) + 0x68
-        mapid = read_double(process, mapid_ptr)
-        print(mapid)
-    except Exception as e:
-        print(e)
-
-    time.sleep(3)
-    write_to_memory(process.handle, ptr, bytearray(pattern[:-1]))  # restore instruction
-
-    VirtualFreeEx(process.handle, new_mem_ptr, 0, MEM_RELEASE)
-
-    process.close()
+    print(scanner.read_map_id())
