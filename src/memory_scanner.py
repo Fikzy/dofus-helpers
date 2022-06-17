@@ -1,9 +1,11 @@
+import os
 import struct
 import sys
 import time
 from ctypes import *
 from ctypes.wintypes import *
 
+import dofus_scanner
 import exec_handler
 import read_write_memory
 
@@ -11,6 +13,7 @@ k32 = WinDLL("kernel32", use_last_error=True)
 psapi = WinDLL("psapi")
 
 INVALID_HANDLE_VALUE = -1
+TH32CS_SNAPHEAPLIST = 0x00000001
 TH32CS_SNAPMODULE = 0x00000008
 TH32CS_SNAPMODULE32 = 0x00000010
 
@@ -19,6 +22,29 @@ MEM_RESERVE = 0x2000
 MEM_RELEASE = 0x8000
 PAGE_NOACCESS = 0x01
 PAGE_EXECUTE_READWRITE = 0x40
+
+
+class HEAPLIST32(Structure):
+    _fields_ = [
+        ("dwSize", c_size_t),
+        ("th32ProcessID", DWORD),
+        ("th32HeapID", POINTER(ULONG)),
+        ("dwFlags", DWORD),
+    ]
+
+
+class HEAPENTRY32(Structure):
+    _fields_ = [
+        ("dwSize", c_size_t),
+        ("hHandle", HANDLE),
+        ("dwAddress", DWORD),
+        ("dwBlockSize", DWORD),
+        ("dwFlags", DWORD),
+        ("dwLockCount", DWORD),
+        ("dwResvd", DWORD),
+        ("th32ProcessID", DWORD),
+        ("th32HeapID", POINTER(ULONG)),
+    ]
 
 
 class MODULEENTRY32(Structure):
@@ -64,6 +90,26 @@ GetMappedFileNameA = psapi.GetMappedFileNameA
 # GetMappedFileNameA.argtypes = [HANDLE, LPVOID, LPSTR, DWORD]
 GetMappedFileNameA.restype = DWORD
 
+## Heap32ListFirst
+Heap32ListFirst = k32.Heap32ListFirst
+Heap32ListFirst.argtypes = [HANDLE, POINTER(HEAPLIST32)]
+Heap32ListFirst.restype = BOOL
+
+## Heap32ListNext
+Heap32ListNext = k32.Heap32ListNext
+Heap32ListNext.argtypes = [HANDLE, POINTER(HEAPLIST32)]
+Heap32ListNext.restype = BOOL
+
+## Heap32First
+Heap32First = k32.Heap32First
+Heap32First.argtypes = [POINTER(HEAPENTRY32), DWORD, POINTER(ULONG)]
+Heap32First.restype = BOOL
+
+## Heap32Next
+Heap32Next = k32.Heap32Next
+Heap32Next.argtypes = [POINTER(HEAPENTRY32)]
+Heap32Next.restype = BOOL
+
 ## Module32First
 Module32First = k32.Module32First
 Module32First.argtypes = [HANDLE, POINTER(MODULEENTRY32)]
@@ -105,7 +151,55 @@ WriteProcessMemory.argtypes = [HANDLE, LPVOID, LPCVOID, c_size_t, POINTER(c_size
 WriteProcessMemory.restype = BOOL
 
 
-def get_module(proc_id: c_ulong, mod_name: bytes) -> MODULEENTRY32:
+def iterate_heap(proc_id: DWORD) -> MODULEENTRY32:
+
+    print("PID:", proc_id)
+
+    snap_h: HANDLE = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, proc_id)
+
+    if snap_h == INVALID_HANDLE_VALUE:
+        print(f"CreateToolhelp32Snapshot failed: {GetLastError()}\n")
+        return None
+
+    heap_list = HEAPLIST32()
+    heap_list.dwSize = sizeof(HEAPLIST32)
+
+    if not Heap32ListFirst(snap_h, pointer(heap_list)):
+        print(f"Heap32ListFirst failed: {GetLastError()}\n")
+        return None
+
+    heap_entry = HEAPENTRY32()
+    heap_entry.dwSize = sizeof(HEAPENTRY32)
+
+    while True:
+        print(
+            f"th32ProcessID: {heap_list.th32ProcessID}, th32HeapID: {heap_list.th32HeapID.contents.value}"
+        )
+
+        if Heap32First(
+            pointer(heap_entry), heap_list.th32ProcessID, heap_list.th32HeapID
+        ):
+            while True:
+                print(
+                    f"{hex(heap_entry.dwAddress)} -> {hex(heap_entry.dwAddress + heap_entry.dwBlockSize)} ({heap_entry.dwBlockSize})"
+                )
+                if not Heap32Next(heap_entry):
+                    break
+
+        else:
+            print(f"Heap32First failed: {GetLastError()}")
+
+        if not Heap32ListNext(snap_h, pointer(heap_list)):
+            break
+
+    CloseHandle(snap_h)
+
+    print()
+
+    return None
+
+
+def get_module(proc_id: DWORD, mod_name: bytes) -> MODULEENTRY32:
 
     snap_h: HANDLE = CreateToolhelp32Snapshot(
         TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, proc_id
@@ -138,15 +232,10 @@ def scan_basic(pattern: bytearray, mask: bytearray, begin: int, size: int) -> in
 
             val = cast(begin + i + j, POINTER(c_ubyte)).contents.value
 
-            # print(hex(val), end=" ")
-
             # 63 == ?
-            # if mask[j] != 63 and pattern[j] != val:
-            if pattern[j] != val:
+            if mask[j] != 63 and pattern[j] != val:
                 found = False
                 break
-
-        # print()
 
         if found:
             return begin + i
@@ -169,25 +258,15 @@ def scan_ex(
 
     VirtualQueryEx(h_proc, begin, byref(mbi), sizeof(mbi))
 
-    name_buffer = (c_char * 256)()
+    # name_buffer = (c_char * 256)()
 
     curr = begin
-    while curr < 0x7FFF0000:
+    while curr < begin + size:
 
         if not VirtualQueryEx(h_proc, curr, byref(mbi), sizeof(mbi)):
             curr += mbi.RegionSize
             continue
         if mbi.State != MEM_COMMIT or mbi.Protect == PAGE_NOACCESS:
-            curr += mbi.RegionSize
-            continue
-
-        GetMappedFileNameA(h_proc, curr, byref(name_buffer), len(name_buffer))
-        name: str = name_buffer.value.decode("utf-8")
-
-        if name:
-            print(name)
-
-        if "mswsock.dll.mui" not in name:
             curr += mbi.RegionSize
             continue
 
@@ -201,6 +280,9 @@ def scan_ex(
             byref(old_protect),
         ):
             print(f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize})")
+
+            # GetMappedFileNameA(h_proc, curr, byref(name_buffer), len(name_buffer))
+            # print(name_buffer.value.decode("utf-8"))
 
             ReadProcessMemory(
                 h_proc,
@@ -254,13 +336,11 @@ def jump_instruction(_from: int, _to: int) -> bytearray:
     return bytearray(b"\xE9") + offset
 
 
-class Scanner:
+class MemoryScanner:
 
     process: read_write_memory.Process
-    __allocations: list[int]
-    __injections_to_restore: list[tuple[int, bytearray]]
-
-    mapid_ptr: int
+    _allocations: list[int]
+    _injections_to_restore: list[tuple[int, bytearray]]
 
     def __init__(self, process_id: int):
         rwm = read_write_memory.ReadWriteMemory()
@@ -268,12 +348,10 @@ class Scanner:
         self.process = rwm.get_process_by_id(process_id)
         self.process.open()
 
-        self.__allocations = []
-        self.__injections_to_restore = []
+        self._allocations = []
+        self._injections_to_restore = []
 
-        self.mapid_ptr = None
-
-    def __write_to_memory(self, dest: int, src_buffer: bytearray) -> c_size_t:
+    def _write_to_memory(self, dest: int, src_buffer: bytearray) -> c_size_t:
         bytes_w = c_size_t()
         try:
             WriteProcessMemory(
@@ -287,7 +365,7 @@ class Scanner:
             print(e)
         return bytes_w
 
-    def __read_double(self, ptr: int) -> int:
+    def _read_double(self, ptr: int) -> int:
         try:
             rb = self.process.readByte(ptr, length=8)
             rb = "".join([b.lstrip(r"0x").rjust(2, "0") for b in rb])
@@ -297,68 +375,16 @@ class Scanner:
             print(e)
             return None
 
-    def setup_mapid_reader(self):
-
-        PATTERN = b"\x66\x0f\xd6\x46\x68\x83"
-        MASK = b"xxxxxx"
-
-        # scan whole memory, very slow
-        ptr = scan_ex(PATTERN, MASK, 0, 0x0800000000000, self.process.handle)
-        # ptr = 0x23356C29
-        print("ptr:", hex(ptr))
-
-        new_mem_ptr: int = VirtualAllocEx(
-            self.process.handle,
-            None,
-            0x1000,
-            MEM_COMMIT | MEM_RESERVE,
-            PAGE_EXECUTE_READWRITE,
-        )
-
-        self.__allocations.append(new_mem_ptr)
-
-        print(hex(new_mem_ptr))
-
-        inject_instr_ptr = new_mem_ptr
-        self.mapid_ptr = new_mem_ptr + 0x20
-
-        jump_to_injected_instr = jump_instruction(inject_instr_ptr, ptr)
-
-        injected_instr = (
-            bytearray(b"\x89\x35")
-            + (self.mapid_ptr).to_bytes(4, sys.byteorder)
-            + bytearray(b"\x66\x0F\xD6\x46\x68")
-            # no idea why -6 instead of +5 (next instr)
-            + jump_instruction(ptr - 6, inject_instr_ptr)
-        )
-
-        self.__write_to_memory(ptr, jump_to_injected_instr)
-        self.__write_to_memory(inject_instr_ptr, injected_instr)
-
-        self.__injections_to_restore.append((ptr, bytearray(PATTERN[:-1])))
-
-    def read_map_id(self) -> int:
-        OFFSET = 0x68
-        try:
-            mapid_ptr = self.process.read(self.mapid_ptr)
-            if not mapid_ptr:
-                print("MapID location unknown, change map once to obtain it.")
-                return None
-            return self.__read_double(mapid_ptr + OFFSET)
-        except Exception as e:
-            print(e)
-            return None
-
     def __del__(self):
 
         print("Scanner destructor called")
 
         # Restore injections
-        for ptr, buffer in self.__injections_to_restore:
-            self.__write_to_memory(ptr, buffer)
+        for ptr, buffer in self._injections_to_restore:
+            self._write_to_memory(ptr, buffer)
 
         # Free up allocations
-        for ptr in self.__allocations:
+        for ptr in self._allocations:
             VirtualFreeEx(self.process.handle, ptr, 0, MEM_RELEASE)
 
 
@@ -391,9 +417,37 @@ if __name__ == "__main__":
 
     handler = exec_handler.ExecHandler(".* - Dofus .*")
 
-    scanner = Scanner(handler.get_pid())
-    scanner.setup_mapid_reader()
+    module = get_module(handler.get_pid(), b"Adobe AIR.dll")
 
-    time.sleep(10)
+    iterate_heap(0)
+    iterate_heap(os.getpid())
+    iterate_heap(handler.get_pid())
 
-    print(scanner.read_map_id())
+    # scanner = dofus_scanner.DofusScanner(handler.get_pid())
+    # scanner.setup_player_structure_ptr_reader()
+    # print(scanner.read_inv_weight())
+
+    # # Adobe AIR.dll+56FDA2 - 8B 4D 10              - mov ecx,[ebp+10]
+    # # Adobe AIR.dll+56FDA5 - 89 0F                 - mov [edi],ecx
+    # # Adobe AIR.dll+56FDA7 - 83 E1 F8              - and ecx,-08
+    # PATTERN = b"\x8b\x4d\x00\x89\x0f\x83\xe1"
+    # MASK = b"xx?xxxx"
+    # ptr = scan_mod_ex(PATTERN, MASK, module, scanner.process.handle)
+
+    # print(hex(ptr))
+
+    # ------------------------------------------------
+
+    # scanner.setup_mapid_reader()
+
+    # time.sleep(10)
+
+    # print(scanner.read_map_id())
+
+    # rwm = read_write_memory.ReadWriteMemory()
+    # process = rwm.get_process_by_id(module.th32ProcessID)
+    # process.open()
+
+    # walk_mem_maps(process.handle)
+
+    # process.close()
