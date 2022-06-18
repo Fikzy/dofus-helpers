@@ -1,14 +1,27 @@
+from functools import cached_property
+
 from memory_scanner import *
 
 
 class DofusScanner(MemoryScanner):
 
-    player_struct_ptr: int = None
+    __player_struct_ptr: int = None
+    __player_struct_ptr_mem: int
 
     def __init__(self, process_id: int):
         super().__init__(process_id)
 
-        self.player_struct_ptr = None
+    def player_struct_ptr(self) -> int:
+        if not self.__player_struct_ptr:
+            ptr = self.process.read(self.__player_struct_ptr_mem)
+            if ptr:
+                self.__player_struct_ptr = ptr
+            else:
+                print(
+                    "Player struct location unknown, interact with the game to retrieve it."
+                )
+
+        return self.__player_struct_ptr
 
     def setup_player_structure_ptr_reader(self):
 
@@ -40,25 +53,31 @@ class DofusScanner(MemoryScanner):
         self._allocations.append(new_mem_ptr)
 
         read_ptr_instr_ptr = new_mem_ptr
-        self.player_struct_ptr = new_mem_ptr + 0x20
+        self.__player_struct_ptr_mem = new_mem_ptr + 0x20
 
-        jump_to_instr = jump_instruction(read_ptr_instr_ptr, ptr)
+        print(hex(new_mem_ptr))
+
+        overwritten_instr = bytearray(PATTERN[:6])
+
+        jump_to_read_instr = jump_instruction(ptr, read_ptr_instr_ptr)
+
         read_ptr_instr = (
-            bytearray(b"\x8B\x90\xC8\x00\x00\x00")
-            + bytearray(b"\xA3")
-            + (self.player_struct_ptr).to_bytes(4, sys.byteorder)
-            + jump_instruction(ptr - 6, read_ptr_instr_ptr)
+            overwritten_instr
+            + b"\xA3"
+            + (self.__player_struct_ptr_mem).to_bytes(4, sys.byteorder)
+        )
+        jump_back_instr = jump_instruction(
+            read_ptr_instr_ptr + len(read_ptr_instr), ptr + len(overwritten_instr)
         )
 
-        # self._write_to_memory(ptr, jump_to_instr)
-        # self._write_to_memory(read_ptr_instr_ptr, read_ptr_instr)
+        self._write_to_memory(ptr, jump_to_read_instr + b"\x90")
+        # JUMP + NOP to ensure same size as original
 
-        # self._injections_to_restore.append((ptr, bytearray(PATTERN[:-1])))
+        self._write_to_memory(read_ptr_instr_ptr, read_ptr_instr + jump_back_instr)
+
+        self._injections_to_restore.append((ptr, bytearray(PATTERN[:-1])))
 
     def read_inv_weight(self) -> int:
-        if self.player_struct_ptr is None:
-            print(
-                "PlayerCharacterManager location unknown, move around in the game to obtain it."
-            )
+        if self.player_struct_ptr() is None:
             return None
-        return self.process.read(self.player_struct_ptr + 0x18)
+        return self.process.read(self.player_struct_ptr() + 0x18)

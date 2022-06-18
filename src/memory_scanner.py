@@ -344,10 +344,10 @@ def scan_mod_ex(
 
 
 def jump_instruction(_from: int, _to: int) -> bytearray:
-    # 4 bytes because 32 bits
+    # 4 bytes long address because 32 bits
     # signed because offset can be negative
-    # -5 (length of instruction) because offset is from next instruction
-    offset = (_from - _to - 5).to_bytes(4, sys.byteorder, signed=True)
+    # +5 (length of instruction) because offset is from next instruction
+    offset = (_to - (_from + 5)).to_bytes(4, sys.byteorder, signed=True)
     return bytearray(b"\xE9") + offset
 
 
@@ -479,6 +479,12 @@ if __name__ == "__main__":
     scanner.setup_player_structure_ptr_reader()
 
     print(f"Took: {time.time() - start:.2f}s")
+
+    print(scanner.read_inv_weight())
+
+    time.sleep(15)
+
+    print(scanner.read_inv_weight())
 
     # # Adobe AIR.dll+56FDA2 - 8B 4D 10              - mov ecx,[ebp+10]
     # # Adobe AIR.dll+56FDA5 - 89 0F                 - mov [edi],ecx
