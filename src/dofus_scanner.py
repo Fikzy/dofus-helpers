@@ -1,29 +1,53 @@
-from functools import cached_property
+from typing import Any
 
 from memory_scanner import *
 
 
+class PlayerManager:
+    _OFF_INVENTORY_WEIGHT = 0x18
+    _OFF_INVENTORY_WEIGHT_MAX = 0x20
+    _OFF_CURRENT_MAP_PTR = 0xC0
+    _OFF_PREV_MAP_PTR = 0xC4
+
+
+class WorldPointWrapper:
+    _OFF_MAP_ID = 0x20
+
+
 class DofusScanner(MemoryScanner):
 
-    __player_struct_ptr: int = None
-    __player_struct_ptr_mem: int
+    __player_manager_struct_ptr: int = None
+    __player_manager_struct_ptr_mem: int = None
 
     def __init__(self, process_id: int):
         super().__init__(process_id)
 
-    def player_struct_ptr(self) -> int:
-        if not self.__player_struct_ptr:
-            ptr = self.process.read(self.__player_struct_ptr_mem)
+    def _player_manager_struct_ptr(self) -> int:
+
+        if not self.__player_manager_struct_ptr:
+
+            if self.__player_manager_struct_ptr_mem is None:
+                exit("PlayerManager pointer reader not setup.")
+
+            ptr = self.process.read(self.__player_manager_struct_ptr_mem)
             if ptr:
-                self.__player_struct_ptr = ptr
+                self.__player_manager_struct_ptr = ptr
             else:
                 print(
-                    "Player struct location unknown, interact with the game to retrieve it."
+                    "PlayerManager structure location unknown, interact with the game to retrieve it."
                 )
 
-        return self.__player_struct_ptr
+        return self.__player_manager_struct_ptr
 
-    def setup_player_structure_ptr_reader(self):
+    def read_player_manager_struct_field(
+        self, offset: int, read_func=read_write_memory.Process.read
+    ) -> Any:
+        ptr = self._player_manager_struct_ptr()
+        if ptr is None:
+            return None
+        return read_func(self.process, ptr + offset)
+
+    def setup_player_manager_structure_ptr_reader(self):
 
         # 19255755 - 8B 90 C8000000        - mov edx,[eax+000000C8]
         # 1925575B - 8D 45 98              - lea eax,[ebp-68]
@@ -53,9 +77,7 @@ class DofusScanner(MemoryScanner):
         self._allocations.append(new_mem_ptr)
 
         read_ptr_instr_ptr = new_mem_ptr
-        self.__player_struct_ptr_mem = new_mem_ptr + 0x20
-
-        print(hex(new_mem_ptr))
+        self.__player_manager_struct_ptr_mem = new_mem_ptr + 0x20
 
         overwritten_instr = bytearray(PATTERN[:6])
 
@@ -64,7 +86,7 @@ class DofusScanner(MemoryScanner):
         read_ptr_instr = (
             overwritten_instr
             + b"\xA3"
-            + (self.__player_struct_ptr_mem).to_bytes(4, sys.byteorder)
+            + (self.__player_manager_struct_ptr_mem).to_bytes(4, sys.byteorder)
         )
         jump_back_instr = jump_instruction(
             read_ptr_instr_ptr + len(read_ptr_instr), ptr + len(overwritten_instr)
@@ -77,7 +99,11 @@ class DofusScanner(MemoryScanner):
 
         self._injections_to_restore.append((ptr, bytearray(PATTERN[:-1])))
 
-    def read_inv_weight(self) -> int:
-        if self.player_struct_ptr() is None:
+    def read_current_map_ptr(self) -> int:
+        return self.read_player_manager_struct_field(PlayerManager._OFF_CURRENT_MAP_PTR)
+
+    def read_current_map_id(self) -> int:
+        ptr = self.read_current_map_ptr()
+        if ptr is None:
             return None
-        return self.process.read(self.player_struct_ptr() + 0x18)
+        return self._read_double(ptr + WorldPointWrapper._OFF_MAP_ID)

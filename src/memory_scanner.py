@@ -299,7 +299,7 @@ def scan_ex(
             byref(old_protect),
         ):
             print(
-                f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) protect: {hex(old_protect.value)}"
+                f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} | size: {mbi.RegionSize}, protect: {hex(old_protect.value)}"
             )
 
             ReadProcessMemory(
@@ -392,8 +392,6 @@ class MemoryScanner:
 
     def __del__(self):
 
-        print("Scanner destructor called")
-
         # Restore injections
         for ptr, buffer in self._injections_to_restore:
             self._write_to_memory(ptr, buffer)
@@ -467,46 +465,15 @@ if __name__ == "__main__":
 
     handler = exec_handler.ExecHandler(".* - Dofus .*")
 
-    # module = get_module(handler.get_pid(), b"Adobe AIR.dll")
-
-    # curr = cast(module.modBaseAddr, c_void_p).value
-    # size = module.modBaseSize
-    # print(f"{hex(curr)} -> {hex(curr + size)} ({size})")
-
     start = time.time()
 
     scanner = dofus_scanner.DofusScanner(handler.get_pid())
-    scanner.setup_player_structure_ptr_reader()
+    scanner.setup_player_manager_structure_ptr_reader()
 
     print(f"Took: {time.time() - start:.2f}s")
 
-    print(scanner.read_inv_weight())
+    print("map_id:", scanner.read_current_map_id())
 
-    time.sleep(15)
+    time.sleep(10)
 
-    print(scanner.read_inv_weight())
-
-    # # Adobe AIR.dll+56FDA2 - 8B 4D 10              - mov ecx,[ebp+10]
-    # # Adobe AIR.dll+56FDA5 - 89 0F                 - mov [edi],ecx
-    # # Adobe AIR.dll+56FDA7 - 83 E1 F8              - and ecx,-08
-    # PATTERN = b"\x8b\x4d\x00\x89\x0f\x83\xe1"
-    # MASK = b"xx?xxxx"
-    # ptr = scan_mod_ex(PATTERN, MASK, module, scanner.process.handle)
-
-    # print(hex(ptr))
-
-    # ------------------------------------------------
-
-    # scanner.setup_mapid_reader()
-
-    # time.sleep(10)
-
-    # print(scanner.read_map_id())
-
-    # rwm = read_write_memory.ReadWriteMemory()
-    # process = rwm.get_process_by_id(module.th32ProcessID)
-    # process.open()
-
-    # walk_mem_maps(process.handle)
-
-    # process.close()
+    print("map_id:", scanner.read_current_map_id())
