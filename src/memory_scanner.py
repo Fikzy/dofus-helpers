@@ -1,4 +1,4 @@
-import os
+import ctypes
 import struct
 import sys
 import time
@@ -12,7 +12,7 @@ import read_write_memory
 k32 = WinDLL("kernel32", use_last_error=True)
 psapi = WinDLL("psapi")
 
-INVALID_HANDLE_VALUE = -1
+INVALID_HANDLE_VALUE = ctypes.c_ulonglong(-1).value
 TH32CS_SNAPHEAPLIST = 0x00000001
 TH32CS_SNAPMODULE = 0x00000008
 TH32CS_SNAPMODULE32 = 0x00000010
@@ -20,7 +20,10 @@ TH32CS_SNAPMODULE32 = 0x00000010
 MEM_COMMIT = 0x1000
 MEM_RESERVE = 0x2000
 MEM_RELEASE = 0x8000
+MEM_FREE = 0x10000
+
 PAGE_NOACCESS = 0x01
+PAGE_EXECUTE_READ = 0x20
 PAGE_EXECUTE_READWRITE = 0x40
 
 
@@ -28,7 +31,7 @@ class HEAPLIST32(Structure):
     _fields_ = [
         ("dwSize", c_size_t),
         ("th32ProcessID", DWORD),
-        ("th32HeapID", POINTER(ULONG)),
+        ("th32HeapID", DWORD),
         ("dwFlags", DWORD),
     ]
 
@@ -43,7 +46,7 @@ class HEAPENTRY32(Structure):
         ("dwLockCount", DWORD),
         ("dwResvd", DWORD),
         ("th32ProcessID", DWORD),
-        ("th32HeapID", POINTER(ULONG)),
+        ("th32HeapID", DWORD),
     ]
 
 
@@ -85,6 +88,11 @@ CloseHandle = k32.CloseHandle
 CloseHandle.argtypes = [HANDLE]
 CloseHandle.restype = BOOL
 
+## GetLastError
+GetLastError = k32.GetLastError
+GetLastError.argtypes = []
+GetLastError.restype = DWORD
+
 ## GetMappedFileNameA
 GetMappedFileNameA = psapi.GetMappedFileNameA
 # GetMappedFileNameA.argtypes = [HANDLE, LPVOID, LPSTR, DWORD]
@@ -102,7 +110,7 @@ Heap32ListNext.restype = BOOL
 
 ## Heap32First
 Heap32First = k32.Heap32First
-Heap32First.argtypes = [POINTER(HEAPENTRY32), DWORD, POINTER(ULONG)]
+Heap32First.argtypes = [POINTER(HEAPENTRY32), DWORD, DWORD]
 Heap32First.restype = BOOL
 
 ## Heap32Next
@@ -153,50 +161,50 @@ WriteProcessMemory.restype = BOOL
 
 def iterate_heap(proc_id: DWORD) -> MODULEENTRY32:
 
-    print("PID:", proc_id)
-
     snap_h: HANDLE = CreateToolhelp32Snapshot(TH32CS_SNAPHEAPLIST, proc_id)
 
     if snap_h == INVALID_HANDLE_VALUE:
         print(f"CreateToolhelp32Snapshot failed: {GetLastError()}\n")
-        return None
+        return
 
     heap_list = HEAPLIST32()
     heap_list.dwSize = sizeof(HEAPLIST32)
 
     if not Heap32ListFirst(snap_h, pointer(heap_list)):
         print(f"Heap32ListFirst failed: {GetLastError()}\n")
-        return None
+        return
 
     heap_entry = HEAPENTRY32()
     heap_entry.dwSize = sizeof(HEAPENTRY32)
 
     while True:
         print(
-            f"th32ProcessID: {heap_list.th32ProcessID}, th32HeapID: {heap_list.th32HeapID.contents.value}"
+            f"dwSize: {heap_list.dwSize}, th32ProcessID: {heap_list.th32ProcessID}, th32HeapID: {heap_list.th32HeapID}, dwFlags: {heap_list.dwFlags}"
         )
 
-        if Heap32First(
-            pointer(heap_entry), heap_list.th32ProcessID, heap_list.th32HeapID
-        ):
-            while True:
-                print(
-                    f"{hex(heap_entry.dwAddress)} -> {hex(heap_entry.dwAddress + heap_entry.dwBlockSize)} ({heap_entry.dwBlockSize})"
-                )
-                if not Heap32Next(heap_entry):
-                    break
+        if heap_list.dwFlags != 1:
+            if Heap32First(
+                pointer(heap_entry), heap_list.th32ProcessID, heap_list.th32HeapID
+            ):
+                while True:
+                    print(
+                        f"{hex(heap_entry.dwAddress)} -> {hex(heap_entry.dwAddress + heap_entry.dwBlockSize)} ({heap_entry.dwBlockSize})"
+                    )
 
-        else:
-            print(f"Heap32First failed: {GetLastError()}")
+                    heap_entry.dwSize = sizeof(HEAPENTRY32)
+                    if not Heap32Next(heap_entry):
+                        break
+
+            else:
+                print(f"Heap32First failed: {GetLastError()}")
+
+        heap_list.dwSize = sizeof(HEAPLIST32)
 
         if not Heap32ListNext(snap_h, pointer(heap_list)):
             break
 
-    CloseHandle(snap_h)
-
     print()
-
-    return None
+    CloseHandle(snap_h)
 
 
 def get_module(proc_id: DWORD, mod_name: bytes) -> MODULEENTRY32:
@@ -205,16 +213,19 @@ def get_module(proc_id: DWORD, mod_name: bytes) -> MODULEENTRY32:
         TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, proc_id
     )
 
-    if snap_h != INVALID_HANDLE_VALUE:
-        mod_entry = MODULEENTRY32()
-        mod_entry.dwSize = sizeof(MODULEENTRY32)
+    if snap_h == INVALID_HANDLE_VALUE:
+        print(f"CreateToolhelp32Snapshot failed: {GetLastError()}\n")
+        return None
 
-        if Module32First(snap_h, pointer(mod_entry)):
-            while True:
-                if mod_entry.szModule == mod_name:
-                    return mod_entry
-                if not Module32Next(snap_h, pointer(mod_entry)):
-                    break
+    mod_entry = MODULEENTRY32()
+    mod_entry.dwSize = sizeof(MODULEENTRY32)
+
+    if Module32First(snap_h, pointer(mod_entry)):
+        while True:
+            if mod_entry.szModule == mod_name:
+                return mod_entry
+            if not Module32Next(snap_h, pointer(mod_entry)):
+                break
 
     CloseHandle(snap_h)
 
@@ -249,24 +260,32 @@ def scan_ex(
     begin: int,
     size: int,
     h_proc: HANDLE,
+    exp_page_protect: DWORD = None,
+    exp_page_size: c_size_t = None,
 ) -> int:
 
-    match: int = 0
     bytes_read = c_ulonglong()
     old_protect = DWORD()
     mbi = MEMORY_BASIC_INFORMATION()
 
     VirtualQueryEx(h_proc, begin, byref(mbi), sizeof(mbi))
 
-    # name_buffer = (c_char * 256)()
-
     curr = begin
     while curr < begin + size:
 
-        if not VirtualQueryEx(h_proc, curr, byref(mbi), sizeof(mbi)):
-            curr += mbi.RegionSize
-            continue
-        if mbi.State != MEM_COMMIT or mbi.Protect == PAGE_NOACCESS:
+        if (
+            # Failed VirtualQueryEx
+            not VirtualQueryEx(h_proc, curr, byref(mbi), sizeof(mbi))
+            # Incorrect rights
+            or mbi.State != MEM_COMMIT
+            or mbi.Protect == PAGE_NOACCESS
+            # Not the expected page protection
+            or exp_page_protect
+            and mbi.Protect != exp_page_protect
+            # Not the expected page size
+            or exp_page_size
+            and mbi.RegionSize != exp_page_size
+        ):
             curr += mbi.RegionSize
             continue
 
@@ -279,10 +298,9 @@ def scan_ex(
             PAGE_EXECUTE_READWRITE,
             byref(old_protect),
         ):
-            print(f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize})")
-
-            # GetMappedFileNameA(h_proc, curr, byref(name_buffer), len(name_buffer))
-            # print(name_buffer.value.decode("utf-8"))
+            print(
+                f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} ({mbi.RegionSize}) protect: {hex(old_protect.value)}"
+            )
 
             ReadProcessMemory(
                 h_proc,
@@ -305,12 +323,9 @@ def scan_ex(
             )
 
             if internal_addr:
-                match = curr + (internal_addr - addressof(buffer))
-                break
+                return curr + (internal_addr - addressof(buffer))
 
         curr += mbi.RegionSize
-
-    return match
 
 
 def scan_mod_ex(
@@ -413,19 +428,57 @@ def walk_mem_maps(h_proc: HANDLE):
         curr += mbi.RegionSize
 
 
+def iterate_modules(proc_id: DWORD):
+
+    snap_h: HANDLE = CreateToolhelp32Snapshot(
+        TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, proc_id
+    )
+
+    if snap_h == INVALID_HANDLE_VALUE:
+        print(f"CreateToolhelp32Snapshot failed: {GetLastError()}\n")
+        return None
+
+    mod_entry = MODULEENTRY32()
+    mod_entry.dwSize = sizeof(MODULEENTRY32)
+
+    if Module32First(snap_h, pointer(mod_entry)):
+        while True:
+
+            print("th32ModuleID:", mod_entry.th32ModuleID)
+            print("th32ProcessID:", mod_entry.th32ProcessID)
+            print("GlblcntUsage:", mod_entry.GlblcntUsage)
+            print("ProccntUsage:", mod_entry.ProccntUsage)
+            print("modBaseAddr:", hex(cast(mod_entry.modBaseAddr, c_void_p).value))
+            print("modBaseSize:", mod_entry.modBaseSize)
+            print("hModule:", mod_entry.hModule)
+            print("szModule:", mod_entry.szModule)
+            print("szExePath:", mod_entry.szExePath)
+            print()
+
+            if not Module32Next(snap_h, pointer(mod_entry)):
+                break
+
+    CloseHandle(snap_h)
+
+    return None
+
+
 if __name__ == "__main__":
 
     handler = exec_handler.ExecHandler(".* - Dofus .*")
 
-    module = get_module(handler.get_pid(), b"Adobe AIR.dll")
+    # module = get_module(handler.get_pid(), b"Adobe AIR.dll")
 
-    iterate_heap(0)
-    iterate_heap(os.getpid())
-    iterate_heap(handler.get_pid())
+    # curr = cast(module.modBaseAddr, c_void_p).value
+    # size = module.modBaseSize
+    # print(f"{hex(curr)} -> {hex(curr + size)} ({size})")
 
-    # scanner = dofus_scanner.DofusScanner(handler.get_pid())
-    # scanner.setup_player_structure_ptr_reader()
-    # print(scanner.read_inv_weight())
+    start = time.time()
+
+    scanner = dofus_scanner.DofusScanner(handler.get_pid())
+    scanner.setup_player_structure_ptr_reader()
+
+    print(f"Took: {time.time() - start:.2f}s")
 
     # # Adobe AIR.dll+56FDA2 - 8B 4D 10              - mov ecx,[ebp+10]
     # # Adobe AIR.dll+56FDA5 - 89 0F                 - mov [edi],ecx

@@ -77,7 +77,7 @@ class ExecHandler:
         return pid
 
     def get_path(self) -> str:
-        _, pid = win32process.GetWindowThreadProcessId(self.hwnd)
+        pid = self.get_pid()
         process = psutil.Process(pid)
         return process.exe()
 

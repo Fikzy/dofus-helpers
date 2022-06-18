@@ -18,9 +18,16 @@ class DofusScanner(MemoryScanner):
         PATTERN = b"\x8B\x90\xC8\x00\x00\x00\x8D\x45\x98\x89\x55\xF0"
         MASK = b"xxxxxxxxxxxx"
 
-        # ptr = scan_ex(PATTERN, MASK, 0, 0x7FFF0000, self.process.handle)
-        # print("ptr:", hex(ptr))
-        ptr = 0x19255755
+        ptr = scan_ex(
+            PATTERN,
+            MASK,
+            0,
+            0x800000000,  # Max 32bit address space?
+            self.process.handle,
+            exp_page_protect=PAGE_EXECUTE_READ,
+            exp_page_size=0xA0000,
+        )
+        print("ptr:", hex(ptr))
 
         new_mem_ptr: int = VirtualAllocEx(
             self.process.handle,
@@ -43,10 +50,10 @@ class DofusScanner(MemoryScanner):
             + jump_instruction(ptr - 6, read_ptr_instr_ptr)
         )
 
-        self._write_to_memory(ptr, jump_to_instr)
-        self._write_to_memory(read_ptr_instr_ptr, read_ptr_instr)
+        # self._write_to_memory(ptr, jump_to_instr)
+        # self._write_to_memory(read_ptr_instr_ptr, read_ptr_instr)
 
-        self._injections_to_restore.append((ptr, bytearray(PATTERN[:-1])))
+        # self._injections_to_restore.append((ptr, bytearray(PATTERN[:-1])))
 
     def read_inv_weight(self) -> int:
         if self.player_struct_ptr is None:
@@ -55,15 +62,3 @@ class DofusScanner(MemoryScanner):
             )
             return None
         return self.process.read(self.player_struct_ptr + 0x18)
-
-    # def read_map_id(self) -> int:
-    #     OFFSET = 0x68
-    #     try:
-    #         mapid_ptr = self.process.read(self.player_struct_ptr)
-    #         if not mapid_ptr:
-    #             print("MapID location unknown, change map once to obtain it.")
-    #             return None
-    #         return self.__read_double(mapid_ptr + OFFSET)
-    #     except Exception as e:
-    #         print(e)
-    #         return None
