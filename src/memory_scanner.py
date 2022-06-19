@@ -1,3 +1,4 @@
+import atexit
 import ctypes
 import struct
 import sys
@@ -366,6 +367,26 @@ class MemoryScanner:
         self._allocations = []
         self._injections_to_restore = []
 
+        atexit.register(self.release)
+
+    def __del__(self):
+        self.release()
+
+    def release(self):
+        """
+        Must be called in order to roll back injections and free page allocations.
+        """
+
+        print("~Scanner()")
+
+        # Restore injections
+        for ptr, buffer in self._injections_to_restore:
+            self._write_to_memory(ptr, buffer)
+
+        # Free up allocations
+        for ptr in self._allocations:
+            VirtualFreeEx(self.process.handle, ptr, 0, MEM_RELEASE)
+
     def _write_to_memory(self, dest: int, src_buffer: bytearray) -> c_size_t:
         bytes_w = c_size_t()
         try:
@@ -389,16 +410,6 @@ class MemoryScanner:
         except Exception as e:
             print(e)
             return None
-
-    def __del__(self):
-
-        # Restore injections
-        for ptr, buffer in self._injections_to_restore:
-            self._write_to_memory(ptr, buffer)
-
-        # Free up allocations
-        for ptr in self._allocations:
-            VirtualFreeEx(self.process.handle, ptr, 0, MEM_RELEASE)
 
 
 def walk_mem_maps(h_proc: HANDLE):
@@ -468,7 +479,7 @@ if __name__ == "__main__":
     start = time.time()
 
     scanner = dofus_scanner.DofusScanner(handler.get_pid())
-    scanner.setup_player_manager_structure_ptr_reader()
+    scanner._setup_player_manager_structure_ptr_reader()
 
     print(f"Took: {time.time() - start:.2f}s")
 

@@ -13,6 +13,7 @@ from pywinauto import win32structures
 
 import exec_handler
 import pathfinding
+from dofus_scanner import DofusScanner
 from world_graph import WorlGraph
 
 GAME_REF_WIDTH = 1350
@@ -35,6 +36,7 @@ MOVE_TIMEOUT = 15
 class DofusHandler(exec_handler.ExecHandler):
 
     world_graph: WorlGraph
+    scanner: DofusScanner
 
     def __init__(self):
         super().__init__(".* - Dofus .*")
@@ -42,6 +44,8 @@ class DofusHandler(exec_handler.ExecHandler):
         exec_path = self.get_path()
         game_directory = os.path.dirname(exec_path)
         self.world_graph = WorlGraph(game_directory)
+
+        self.scanner = DofusScanner(self.get_pid())
 
         os.environ["TESSDATA_PREFIX"] = "./tesseract-data"
 
@@ -241,48 +245,55 @@ class DofusHandler(exec_handler.ExecHandler):
         else:
             print("Can only move to an adjacent map.")
 
-    def __go_to_dest(self, map_id: int, dest: tuple[int, int]):
+    def __go_to_dest(self, dest: tuple[int, int]):
+
+        while True:
+            map_id = self.scanner.read_current_map_id()
+            if map_id is not None:
+                break
+            time.sleep(2)
 
         print(f"Auto travel map_id: {map_id}, dest: {dest}")
 
         path = pathfinding.find_path(self.world_graph, map_id, (dest[0], dest[1]))
-        print(path)
+        print([v.map_id for v in path])
 
         if not path:
             return
 
         path.reverse()
-        goal_pos = path.pop()
+        goal = path.pop()
 
         last_move_time = time.time()
 
         while len(path) > 0:
-            read_pos = self.read_map_coordinates()
+            map_id = self.scanner.read_current_map_id()
+            print(map_id)
             elapsed_since_last_move = time.time() - last_move_time
 
-            if goal_pos == read_pos or elapsed_since_last_move > MOVE_TIMEOUT:
+            if goal.map_id == map_id or elapsed_since_last_move > MOVE_TIMEOUT:
+
+                time.sleep(2)
 
                 if elapsed_since_last_move > MOVE_TIMEOUT:
-                    print(
-                        "Move timed out. Make sure map coordinates are visible (settings) "
-                        "and not obstructed by any UI elements."
-                    )
+                    print("Move timed out. Stopping auto travel.")
+                    return
 
-                prev_pos = goal_pos
-                goal_pos = path.pop()
+                prev = goal
+                goal = path.pop()
                 last_move_time = time.time()
-                self.__move_to_adjacent_pos(prev_pos, goal_pos)
+                self.__move_to_adjacent_pos(prev.pos, goal.pos)
 
             time.sleep(1)
 
         print("Destination reached!")
 
-    def go_to_dest(self, map_id: str, dest: tuple[str, str]):
+    def go_to_dest(self, dest: tuple[str, str]):
 
-        if not map_id or not dest[0] or not dest[1]:
+        if not dest[0] or not dest[1]:
             return
 
-        thread = threading.Thread(
-            target=self.__go_to_dest, args=(int(map_id), (int(dest[0]), int(dest[1])))
-        )
+        pos = int(dest[0]), int(dest[1])
+
+        thread = threading.Thread(target=self.__go_to_dest, args=(pos,))
         thread.start()

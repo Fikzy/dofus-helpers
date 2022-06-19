@@ -141,7 +141,7 @@ def __build_result_path(graph: WorlGraph, node: Node) -> list[Edge]:
 
 def find_path(
     graph: WorlGraph, start_map_id: int, dest_pos: tuple[int, int]
-) -> list[tuple[int, int]]:
+) -> list[Vertex]:
 
     start_map_data = graph.map_positions.get(start_map_id)
     if start_map_data is None:
@@ -162,7 +162,7 @@ def find_path(
         if not path:
             continue
 
-        path_coordinates = [path[0].start.pos]
+        path_vertices = [path[0].start]
         for edge in path:
-            path_coordinates.append(edge.end.pos)
-        return path_coordinates
+            path_vertices.append(edge.end)
+        return path_vertices

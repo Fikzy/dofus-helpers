@@ -13,10 +13,6 @@ def auto_travel_widget(handler: dofus_handler.DofusHandler):
 
     int_validator = QtGui.QIntValidator()
 
-    map_id_input = QtWidgets.QLineEdit()
-    map_id_input.setPlaceholderText("Current map ID")
-    map_id_input.setValidator(int_validator)
-
     dest_x_input = QtWidgets.QLineEdit()
     dest_y_input = QtWidgets.QLineEdit()
     dest_x_input.setPlaceholderText("dest x")
@@ -27,14 +23,10 @@ def auto_travel_widget(handler: dofus_handler.DofusHandler):
 
     go_to_dest_button = QtWidgets.QPushButton("Go!")
     go_to_dest_button.clicked.connect(
-        lambda: handler.go_to_dest(
-            map_id_input.text(),
-            (dest_x_input.text(), dest_y_input.text()),
-        )
+        lambda: handler.go_to_dest((dest_x_input.text(), dest_y_input.text()))
     )
 
     layout = QtWidgets.QVBoxLayout()
-    layout.addWidget(map_id_input)
 
     dest_layout = QtWidgets.QHBoxLayout()
     dest_layout.addWidget(dest_x_input)

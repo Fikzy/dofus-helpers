@@ -16,38 +16,14 @@ class WorldPointWrapper:
 
 class DofusScanner(MemoryScanner):
 
-    __player_manager_struct_ptr: int = None
     __player_manager_struct_ptr_mem: int = None
+    __player_manager_struct_ptr: int = None
 
     def __init__(self, process_id: int):
         super().__init__(process_id)
+        self._setup_player_manager_structure_ptr_reader()
 
-    def _player_manager_struct_ptr(self) -> int:
-
-        if not self.__player_manager_struct_ptr:
-
-            if self.__player_manager_struct_ptr_mem is None:
-                exit("PlayerManager pointer reader not setup.")
-
-            ptr = self.process.read(self.__player_manager_struct_ptr_mem)
-            if ptr:
-                self.__player_manager_struct_ptr = ptr
-            else:
-                print(
-                    "PlayerManager structure location unknown, interact with the game to retrieve it."
-                )
-
-        return self.__player_manager_struct_ptr
-
-    def read_player_manager_struct_field(
-        self, offset: int, read_func=read_write_memory.Process.read
-    ) -> Any:
-        ptr = self._player_manager_struct_ptr()
-        if ptr is None:
-            return None
-        return read_func(self.process, ptr + offset)
-
-    def setup_player_manager_structure_ptr_reader(self):
+    def _setup_player_manager_structure_ptr_reader(self):
 
         # 19255755 - 8B 90 C8000000        - mov edx,[eax+000000C8]
         # 1925575B - 8D 45 98              - lea eax,[ebp-68]
@@ -62,9 +38,12 @@ class DofusScanner(MemoryScanner):
             0x800000000,  # Max 32bit address space?
             self.process.handle,
             exp_page_protect=PAGE_EXECUTE_READ,
-            exp_page_size=0xA0000,
+            # exp_page_size=0xA0000,
         )
         print("ptr:", hex(ptr))
+
+        if ptr is None:
+            exit("Failed to setup PlayerManager reader.")
 
         new_mem_ptr: int = VirtualAllocEx(
             self.process.handle,
@@ -98,6 +77,31 @@ class DofusScanner(MemoryScanner):
         self._write_to_memory(read_ptr_instr_ptr, read_ptr_instr + jump_back_instr)
 
         self._injections_to_restore.append((ptr, bytearray(PATTERN[:-1])))
+
+    def _player_manager_struct_ptr(self) -> int:
+
+        if not self.__player_manager_struct_ptr:
+
+            if self.__player_manager_struct_ptr_mem is None:
+                exit("PlayerManager pointer reader not setup.")
+
+            ptr = self.process.read(self.__player_manager_struct_ptr_mem)
+            if ptr:
+                self.__player_manager_struct_ptr = ptr
+            else:
+                print(
+                    "PlayerManager structure location unknown, interact with the game to retrieve it."
+                )
+
+        return self.__player_manager_struct_ptr
+
+    def read_player_manager_struct_field(
+        self, offset: int, read_func=read_write_memory.Process.read
+    ) -> Any:
+        ptr = self._player_manager_struct_ptr()
+        if ptr is None:
+            return None
+        return read_func(self.process, ptr + offset)
 
     def read_current_map_ptr(self) -> int:
         return self.read_player_manager_struct_field(PlayerManager._OFF_CURRENT_MAP_PTR)
