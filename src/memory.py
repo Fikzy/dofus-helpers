@@ -24,8 +24,13 @@ MEM_RELEASE = 0x8000
 MEM_FREE = 0x10000
 
 PAGE_NOACCESS = 0x01
+PAGE_READONLY = 0x02
+PAGE_READWRITE = 0x04
+PAGE_WRITECOPY = 0x08
+PAGE_EXECUTE = 0x10
 PAGE_EXECUTE_READ = 0x20
 PAGE_EXECUTE_READWRITE = 0x40
+PAGE_EXECUTE_WRITECOPY = 0x80
 
 
 class HEAPLIST32(Structure):
@@ -233,115 +238,35 @@ def get_module(proc_id: DWORD, mod_name: bytes) -> MODULEENTRY32:
     return None
 
 
-def scan_basic(pattern: bytearray, mask: bytearray, begin: int, size: int) -> int:
+def scan_basic(
+    pattern: bytearray, begin: int, size: int, mask: bytearray = None
+) -> int:
 
     pattern_len = len(pattern)
 
-    for i in range(size):
-        found = True
-
-        for j in range(pattern_len):
-
-            val = cast(begin + i + j, POINTER(c_ubyte)).contents.value
-
-            # 63 == ?
-            if mask[j] != 63 and pattern[j] != val:
-                found = False
-                break
-
-        if found:
-            return begin + i
+    if mask:
+        for i in range(size):
+            found = True
+            for j in range(pattern_len):
+                val = cast(begin + i + j, POINTER(c_ubyte)).contents.value
+                # 63 == ?
+                if mask[j] != 63 and pattern[j] != val:
+                    found = False
+                    break
+            if found:
+                return begin + i
+    else:
+        for i in range(size):
+            found = True
+            for j in range(pattern_len):
+                val = cast(begin + i + j, POINTER(c_ubyte)).contents.value
+                if pattern[j] != val:
+                    found = False
+                    break
+            if found:
+                return begin + i
 
     return 0
-
-
-def scan_ex(
-    pattern: bytearray,
-    mask: bytearray,
-    begin: int,
-    size: int,
-    h_proc: HANDLE,
-    exp_page_protect: DWORD = None,
-    exp_page_size: c_size_t = None,
-) -> int:
-
-    bytes_read = c_ulonglong()
-    old_protect = DWORD()
-    mbi = MEMORY_BASIC_INFORMATION()
-
-    VirtualQueryEx(h_proc, begin, byref(mbi), sizeof(mbi))
-
-    curr = begin
-    while curr < begin + size:
-
-        if (
-            # Failed VirtualQueryEx
-            not VirtualQueryEx(h_proc, curr, byref(mbi), sizeof(mbi))
-            # Incorrect rights
-            or mbi.State != MEM_COMMIT
-            or mbi.Protect == PAGE_NOACCESS
-            # Not the expected page protection
-            or exp_page_protect
-            and mbi.Protect != exp_page_protect
-            # Not the expected page size
-            or exp_page_size
-            and mbi.RegionSize != exp_page_size
-        ):
-            curr += mbi.RegionSize
-            continue
-
-        buffer = (c_ubyte * mbi.RegionSize)()
-
-        if VirtualProtectEx(
-            h_proc,
-            mbi.BaseAddress,
-            mbi.RegionSize,
-            PAGE_EXECUTE_READWRITE,
-            byref(old_protect),
-        ):
-            print(
-                f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} | size: {mbi.RegionSize}, protect: {hex(old_protect.value)}"
-            )
-
-            ReadProcessMemory(
-                h_proc,
-                mbi.BaseAddress,
-                byref(buffer),
-                mbi.RegionSize,
-                byref(bytes_read),
-            )
-
-            VirtualProtectEx(
-                h_proc,
-                mbi.BaseAddress,
-                mbi.RegionSize,
-                old_protect,
-                pointer(old_protect),
-            )
-
-            internal_addr = scan_basic(
-                pattern, mask, addressof(buffer), bytes_read.value
-            )
-
-            if internal_addr:
-                return curr + (internal_addr - addressof(buffer))
-
-        curr += mbi.RegionSize
-
-
-def scan_mod_ex(
-    pattern: bytearray,
-    mask: bytearray,
-    mod_entry: MODULEENTRY32,
-    h_proc: HANDLE,
-) -> int:
-    return scan_ex(
-        pattern,
-        mask,
-        cast(mod_entry.modBaseAddr, c_void_p).value,
-        mod_entry.modBaseSize,
-        h_proc,
-    )
 
 
 def jump_instruction(_from: int, _to: int) -> bytearray:
@@ -352,7 +277,7 @@ def jump_instruction(_from: int, _to: int) -> bytearray:
     return bytearray(b"\xE9") + offset
 
 
-class MemoryScanner:
+class ReadWriteMemory:
 
     process: read_write_memory.Process
     _allocations: list[int]
@@ -369,39 +294,121 @@ class MemoryScanner:
 
         atexit.register(self.release)
 
-    def __del__(self):
-        self.release()
-
     def release(self):
         """
         Must be called in order to roll back injections and free page allocations.
         """
 
-        print("~Scanner()")
+        print("~ReadWriteMemory()")
 
         # Restore injections
         for ptr, buffer in self._injections_to_restore:
-            self._write_to_memory(ptr, buffer)
+            self.write(ptr, buffer)
 
         # Free up allocations
         for ptr in self._allocations:
             VirtualFreeEx(self.process.handle, ptr, 0, MEM_RELEASE)
 
-    def _write_to_memory(self, dest: int, src_buffer: bytearray) -> c_size_t:
-        bytes_w = c_size_t()
-        try:
-            WriteProcessMemory(
-                self.process.handle,
-                dest,
-                (c_char * len(src_buffer)).from_buffer(src_buffer),
-                len(src_buffer),
-                pointer(bytes_w),
-            )
-        except Exception as e:
-            print(e)
-        return bytes_w
+    def scan(
+        self,
+        pattern: str | bytearray,
+        page_begin: int = 0,
+        size: int = None,
+        mask: bytearray = None,
+        exp_page_protect: DWORD = None,
+        exp_page_size: c_size_t = None,
+    ) -> tuple[int, int]:
+        """
+        Returns address where pattern was found as well as last scanned page start
+        """
 
-    def _read_double(self, ptr: int) -> int:
+        if isinstance(pattern, str):
+            pattern = bytes.fromhex(pattern)
+
+        if size is None:
+            size = 0x800000000 - page_begin
+
+        bytes_read = c_ulonglong()
+        old_protect = DWORD()
+        mbi = MEMORY_BASIC_INFORMATION()
+
+        VirtualQueryEx(self.process.handle, page_begin, byref(mbi), sizeof(mbi))
+
+        curr = page_begin
+        while curr < page_begin + size:
+
+            if (
+                # Failed VirtualQueryEx
+                not VirtualQueryEx(self.process.handle, curr, byref(mbi), sizeof(mbi))
+                # Incorrect rights
+                or mbi.State != MEM_COMMIT
+                or mbi.Protect == PAGE_NOACCESS
+                # Not the expected page protection
+                or exp_page_protect
+                and mbi.Protect != exp_page_protect
+                # Not the expected page size
+                or exp_page_size
+                and mbi.RegionSize != exp_page_size
+            ):
+                curr += mbi.RegionSize
+                continue
+
+            buffer = (c_ubyte * mbi.RegionSize)()
+
+            if VirtualProtectEx(
+                self.process.handle,
+                mbi.BaseAddress,
+                mbi.RegionSize,
+                PAGE_EXECUTE_READWRITE,
+                byref(old_protect),
+            ):
+                print(
+                    f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} | size: {mbi.RegionSize}, protect: {hex(old_protect.value)}"
+                )
+
+                ReadProcessMemory(
+                    self.process.handle,
+                    mbi.BaseAddress,
+                    byref(buffer),
+                    mbi.RegionSize,
+                    byref(bytes_read),
+                )
+
+                VirtualProtectEx(
+                    self.process.handle,
+                    mbi.BaseAddress,
+                    mbi.RegionSize,
+                    old_protect,
+                    pointer(old_protect),
+                )
+
+                internal_addr = scan_basic(
+                    pattern, addressof(buffer), bytes_read.value, mask
+                )
+
+                if internal_addr:
+                    return curr + (internal_addr - addressof(buffer)), curr
+
+            curr += mbi.RegionSize
+
+    def scan_mod(
+        self,
+        pattern: str | bytearray,
+        mod_entry: MODULEENTRY32,
+        mask: bytearray = None,
+    ) -> int:
+
+        if isinstance(pattern, str):
+            pattern = bytes.fromhex(pattern)
+
+        return self.scan(
+            pattern,
+            cast(mod_entry.modBaseAddr, c_void_p).value,
+            mod_entry.modBaseSize,
+            mask,
+        )
+
+    def read_double(self, ptr: int) -> int:
         try:
             rb = self.process.readByte(ptr, length=8)
             rb = "".join([b.lstrip(r"0x").rjust(2, "0") for b in rb])
@@ -410,6 +417,42 @@ class MemoryScanner:
         except Exception as e:
             print(e)
             return None
+
+    def write(self, dest: int, value: str | bytearray) -> c_size_t:
+        bytes_w = c_size_t()
+        try:
+            if isinstance(value, str):
+                value = bytearray.fromhex(value)
+            else:
+                value = value.copy()
+            length = len(value)
+            WriteProcessMemory(
+                self.process.handle,
+                dest,
+                (c_char * length).from_buffer(value),
+                length,
+                pointer(bytes_w),
+            )
+        except Exception as e:
+            print(e)
+        return bytes_w
+
+    def fill(self, start: int, end: int, value: int) -> bool:
+        bytes_w = c_size_t()
+        try:
+            length = end - start
+            values = length * [value]
+            buff = (c_byte * length)(*values)
+            WriteProcessMemory(
+                self.process.handle,
+                start,
+                (c_byte * length).from_buffer(buff),
+                length,
+                pointer(bytes_w),
+            )
+        except Exception as e:
+            print(e)
+        return bool(bytes_w)
 
 
 def walk_mem_maps(h_proc: HANDLE):
@@ -479,7 +522,7 @@ if __name__ == "__main__":
     start = time.time()
 
     scanner = dofus_scanner.DofusScanner(handler.get_pid())
-    scanner._setup_player_manager_structure_ptr_reader()
+    scanner._setup_player_character_manager_ptr_reader()
 
     print(f"Took: {time.time() - start:.2f}s")
 
