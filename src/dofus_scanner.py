@@ -115,39 +115,34 @@ class DofusScanner(ReadWriteMemory):
 
     def patch_autotravel(self) -> int:
 
-        # CharacterDisplacementManager
-        start, p_begin = self.scan("F1 AA 8E 08 F0 52 D0 30 20 80 96 05 63")
-        end, _ = self.scan(
-            "D0 D1 D2 D3 46 A0 BF 01 03 80 14 63 0B F0 AC 01", page_begin=p_begin
-        )
-        self.fill(start, end, 0x02)  # NOP
+        # DofusClientMain
+        _, p_begin = self.scan("F1 FC 87 07 F0 9E")
 
-        print("CharacterDisplacementManager patch done")
+        print("DofusClientMain found")
+
+        # RoleplayWorldFrame
+        ptr, p_begin = self.scan("11 10 00 00 F0 D1", page_begin=p_begin)
+        self.write(ptr, "12")  # iftrue -> iffalse
+        ptr, p_begin = self.scan("11 10 00 00 F0 F8 02 60", page_begin=p_begin)
+        self.write(ptr, "12")
+        ptr, p_begin = self.scan("11 10 00 00 F0 C7 09", page_begin=p_begin)
+        self.write(ptr, "12")
+
+        print("RoleplayWorldFrame patch done")
 
         # MountAutoTripManager
-        ptr, p_begin = self.scan("26 61 E6 87 01 F0 CF 03")
+        ptr, p_begin = self.scan("26 61 E6 87 01 F0 CF", page_begin=p_begin)
         self.write(ptr, "27")  # pushtrue -> pushfalse
-
-        ptr, p_begin = self.scan("26 61 E6 87 01 F0 DA 03", page_begin=p_begin)
+        ptr, p_begin = self.scan("26 61 E6 87 01 F0 DA", page_begin=p_begin)
         self.write(ptr, "27")
-
-        ptr, p_begin = self.scan("26 61 E6 87 01 F0 90 04", page_begin=p_begin)
+        ptr, p_begin = self.scan("26 61 E6 87 01 F0 90", page_begin=p_begin)
         self.write(ptr, "27")
 
         print("MountAutoTripManager patch done")
 
-        # RoleplayWorldFrame
-        ptr, p_begin = self.scan("11 10 00 00 F0 D1 02 60 D3 08 46 CF FE 02 00")
-        self.write(ptr, "12")  # iftrue -> iffalse
+        # CharacterDisplacementManager
+        start, p_begin = self.scan("F1 AA 8E 08 F0 52", page_begin=p_begin)
+        end, _ = self.scan("D0 D1 D2 D3 46 A0 BF 01 03 80 14 63 0B", page_begin=p_begin)
+        self.fill(start, end, 0x02)  # NOP
 
-        ptr, p_begin = self.scan(
-            "11 10 00 00 F0 F8 02 60 D3 08 46 CF FE 02 00", page_begin=p_begin
-        )
-        self.write(ptr, "12")
-
-        ptr, p_begin = self.scan(
-            "11 10 00 00 F0 C7 09 60 D3 08 46 CF FE 02 00", page_begin=p_begin
-        )
-        self.write(ptr, "12")
-
-        print("RoleplayWorldFrame patch done")
+        print("CharacterDisplacementManager patch done")

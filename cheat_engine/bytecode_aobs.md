@@ -1,8 +1,11 @@
 # Autotravel
-CharacterDisplacementManager:
-    # NOP out everything
-    From: F1 AA 8E 08 F0 52 D0 30 20 80 96 05 63
-    To: 01 D0 D1 D2 D3 46 A0 BF 01 03 80 14 63 0B F0 AC 01
+RoleplayWorldFrame:
+    AOB: 11 10 00 00 F0 D1 02 60 D3 08 46 CF FE 02 00
+    Patch: 11 -> 12
+    AOB: 11 10 00 00 F0 F8 02 60 D3 08 46 CF FE 02 00
+    Patch: 11 -> 12
+    AOB: 11 10 00 00 F0 C7 09 60 D3 08 46 CF FE 02 00
+    Patch: 11 -> 12
 
 MountAutoTripManager:
     AOB: 26 61 E6 87 01 F0 CF 03
@@ -12,13 +15,10 @@ MountAutoTripManager:
     AOB: 26 61 E6 87 01 F0 90 04
     Patch: 26 -> 27
 
-RoleplayWorldFrame:
-    AOB: 11 10 00 00 F0 D1 02 60 D3 08 46 CF FE 02 00
-    Patch: 11 -> 12
-    AOB: 11 10 00 00 F0 F8 02 60 D3 08 46 CF FE 02 00
-    Patch: 11 -> 12
-    AOB: 11 10 00 00 F0 C7 09 60 D3 08 46 CF FE 02 00
-    Patch: 11 -> 12
+CharacterDisplacementManager:
+    # NOP out everything
+    From: F1 AA 8E 08 F0 52 D0 30 20 80 96 05 63
+    To: 01 D0 D1 D2 D3 46 A0 BF 01 03 80 14 63 0B F0 AC 01
 
 
 # Map tooltip
