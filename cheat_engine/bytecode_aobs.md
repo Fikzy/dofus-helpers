@@ -28,23 +28,3 @@ MapFlagMenuMaker
 CartographyBase
     AOB: 12 40 00 00 F0 85 0C D1
     Patch: 12 -> 11
-
-<!-- # Jump from first if to bottom, NO WORK
-AOB: 12 04 00 00 29 62 05 96 12 42 00 00
-Patch: 12 04 -> 10 9E
-
-# Jump directly from function start to bottom, NO WORK
-AOB: 20 80 96 05 63 0C 20 80 80 02
-Patch: 20 80 96 05 -> 10 9E 00 00
-
-# Invert last if to debug (should get no dest message)
-AOB: 11 3F 00 00 F0 AE 01 60 AA 01
-Patch: 11 -> 12
-
-# Skip first if
-AOB: 12 04 00 00 29 62 05 96 12 42 00 00
-Patch: 12 04 -> 12 42 -->
-
-<!-- # NOP out:
-    From: 60 B3 8C 01 87 66 E6 87 01 11 10 00 00
-    To: 02 D0 66 B3 39 12 D1 00 00 EF 01 9B E5 -->

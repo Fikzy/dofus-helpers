@@ -1,20 +1,17 @@
-import sys
-
-import app
 import dofus_patcher
-import exec_handler
 
 
-def main(argv: list[str]):
+def main():
 
-    # Setup game handler
-    handler = exec_handler.ExecHandler("Dofus 2.*")
-    patcher = dofus_patcher.DofusPatcher(handler.get_pid())
+    try:
+        patcher = dofus_patcher.DofusPatcher()
+    except Exception as e:
+        print(e)
+        print("Make sure the game is open and on the Authentication screen.")
+        return
+
     patcher.patch_autotravel()
-
-    # Run app
-    # app.run_app(argv, handler)
 
 
 if __name__ == "__main__":
-    main(sys.argv)
+    main()

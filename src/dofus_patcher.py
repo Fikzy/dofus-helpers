@@ -2,6 +2,9 @@ from memory import *
 
 
 class DofusPatcher(ReadWriteMemory):
+    def __init__(self):
+        super().__init__("Dofus")
+
     def find_pattern(
         self,
         page_begin: int,
@@ -31,12 +34,8 @@ class DofusPatcher(ReadWriteMemory):
 
         ptr = self.find_pattern(page_begin, page_buffer, pattern)
 
-        if not ptr:
-            return
-
-        if not self.write(ptr, patch):
-            print("Failed to apply patch.")
-            return
+        if not ptr or not self.write(ptr, patch):
+            exit("Failed to apply patch. Aborting.")
 
     def fill_nop_patch(
         self,
@@ -50,16 +49,10 @@ class DofusPatcher(ReadWriteMemory):
         end_pattern = convert_pattern(end_pattern)
 
         start_ptr = self.find_pattern(page_begin, page_buffer, start_pattern)
-        if not start_ptr:
-            return
-
         end_ptr = self.find_pattern(page_begin, page_buffer, end_pattern)
-        if not end_ptr:
-            return
 
-        if not self.fill(start_ptr, end_ptr, 0x02):
-            print("Failed to apply patch.")
-            return
+        if not end_ptr or not self.fill(start_ptr, end_ptr, 0x02):
+            exit("Failed to apply patch. Aborting.")
 
     def patch_autotravel(self) -> int:
 

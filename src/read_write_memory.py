@@ -334,39 +334,6 @@ class ReadWriteMemory:
     def __init__(self):
         self.process = Process()
 
-    @staticmethod
-    def set_privileges():
-        import ntsecuritycon
-        import win32api
-        import win32con
-        import win32security
-        from ntsecuritycon import TokenPrivileges
-
-        remote_server = None
-        token = win32security.OpenProcessToken(
-            win32api.GetCurrentProcess(),
-            win32con.TOKEN_ADJUST_PRIVILEGES | win32con.TOKEN_QUERY,
-        )
-        win32security.AdjustTokenPrivileges(
-            token,
-            False,
-            (
-                (p[0], 2)
-                if p[0]
-                == win32security.LookupPrivilegeValue(
-                    remote_server, "SeBackupPrivilege"
-                )
-                or p[0]
-                == win32security.LookupPrivilegeValue(remote_server, "SeDebugPrivilege")
-                or p[0]
-                == win32security.LookupPrivilegeValue(
-                    remote_server, "SeSecurityPrivilege"
-                )
-                else (p[0], p[1])
-                for p in win32security.GetTokenInformation(token, TokenPrivileges)
-            ),
-        )
-
     def get_process_by_name(self, process_name: Union[str, bytes]) -> "Process":
         """
         :description: Get the process by the process executabe\'s name and return a Process object.
@@ -376,7 +343,7 @@ class ReadWriteMemory:
         :return: A Process object containing the information from the requested Process.
         """
         if not process_name.endswith(".exe"):
-            self.process.name = process_name + ".exe"
+            process_name = process_name + ".exe"
 
         process_ids = self.enumerate_processes()
 
@@ -399,7 +366,7 @@ class ReadWriteMemory:
                         return self.process
                 self.process.close()
 
-        raise ReadWriteMemoryError(f'Process "{self.process.name}" not found!')
+        raise ReadWriteMemoryError(f'Process "{process_name}" not found!')
 
     def get_process_by_id(self, process_id: int) -> "Process":
         """
