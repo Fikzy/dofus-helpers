@@ -13,6 +13,10 @@ PATCHES: list[Patch] = [
     ReplacementPatch("26 61 E6 87 01 F0 CF", "27"),
     ReplacementPatch("26 61 E6 87 01 F0 DA", "27"),
     ReplacementPatch("26 61 E6 87 01 F0 90", "27"),
+    # CartographyBase
+    ReplacementPatch("12 40 00 00 F0 85 0C D1", "11"),
+    # MapFlagMenuMaker
+    ReplacementPatch("12 05 00 00 29 62 07 82 76 2A 11", "10 0C"),
     # CharacterDisplacementManager
     FillNOPPatch("F1 AA 8E 08 F0 52", "D0 D1 D2 D3 46 A0 BF 01 03 80 14 63 0B"),
 ]

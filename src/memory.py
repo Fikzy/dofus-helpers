@@ -56,11 +56,6 @@ class MEMORY_BASIC_INFORMATION(Structure):
     ]
 
 
-## CloseHandle
-CloseHandle = k32.CloseHandle
-CloseHandle.argtypes = [HANDLE]
-CloseHandle.restype = BOOL
-
 ## ReadProcessMemory
 ReadProcessMemory = k32.ReadProcessMemory
 ReadProcessMemory.argtypes = [HANDLE, LPCVOID, LPVOID, c_size_t, POINTER(c_size_t)]
