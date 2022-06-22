@@ -1,5 +1,5 @@
 # Autotravel
-RoleplayWorldFrame:
+RoleplayWorldFrame: iftrue (11) -> iffalse (12)
     AOB: 11 10 00 00 F0 D1 02 60 D3 08 46 CF FE 02 00
     Patch: 11 -> 12
     AOB: 11 10 00 00 F0 F8 02 60 D3 08 46 CF FE 02 00
@@ -7,7 +7,7 @@ RoleplayWorldFrame:
     AOB: 11 10 00 00 F0 C7 09 60 D3 08 46 CF FE 02 00
     Patch: 11 -> 12
 
-MountAutoTripManager:
+MountAutoTripManager: pushtrue (26) -> pushfalse (27)
     AOB: 26 61 E6 87 01 F0 CF 03
     Patch: 26 -> 27
     AOB: 26 61 E6 87 01 F0 DA 03
@@ -22,9 +22,9 @@ CharacterDisplacementManager:
 
 
 # Map tooltip
-MapFlagMenuMaker
-    AOB: 12 05 00 00 29 62 07 82 76 2A 11
-    Patch: 12 05 -> 10 0C
-CartographyBase
+CartographyBase iffalse (12) -> iftrue (11)
     AOB: 12 40 00 00 F0 85 0C D1
     Patch: 12 -> 11
+MapFlagMenuMaker: iffalse (12) -> jump (10)
+    AOB: 12 05 00 00 29 62 07 82 76 2A 11
+    Patch: 12 05 -> 10 0C

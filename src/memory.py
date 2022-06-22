@@ -1,15 +1,12 @@
 import atexit
 import ctypes
-import struct
-import sys
-import time
+import logging
 from ctypes import *
 from ctypes.wintypes import *
 
 import read_write_memory
 
 k32 = WinDLL("kernel32", use_last_error=True)
-psapi = WinDLL("psapi")
 
 INVALID_HANDLE_VALUE = ctypes.c_ulonglong(-1).value
 TH32CS_SNAPHEAPLIST = 0x00000001
@@ -69,16 +66,6 @@ ReadProcessMemory = k32.ReadProcessMemory
 ReadProcessMemory.argtypes = [HANDLE, LPCVOID, LPVOID, c_size_t, POINTER(c_size_t)]
 ReadProcessMemory.restype = BOOL
 
-## VirtualAllocEx
-VirtualAllocEx = k32.VirtualAllocEx
-VirtualAllocEx.argtypes = [HANDLE, LPVOID, c_size_t, DWORD, DWORD]
-VirtualAllocEx.restype = LPVOID
-
-## VirtualFreeEx
-VirtualFreeEx = k32.VirtualFreeEx
-VirtualFreeEx.argtypes = [HANDLE, LPVOID, c_size_t, DWORD]
-VirtualFreeEx.restype = BOOL
-
 ## VirtualQueryEx
 VirtualQueryEx = k32.VirtualQueryEx
 VirtualQueryEx.argtypes = [HANDLE, LPCVOID, POINTER(MEMORY_BASIC_INFORMATION), c_size_t]
@@ -93,20 +80,6 @@ VirtualProtectEx.restype = c_size_t
 WriteProcessMemory = k32.WriteProcessMemory
 WriteProcessMemory.argtypes = [HANDLE, LPVOID, LPCVOID, c_size_t, POINTER(c_size_t)]
 WriteProcessMemory.restype = BOOL
-
-
-def jump_instruction(_from: int, _to: int) -> bytearray:
-    # 4 bytes long address because 32 bits
-    # signed because offset can be negative
-    # +5 (length of instruction) because offset is from next instruction
-    offset = (_to - (_from + 5)).to_bytes(4, sys.byteorder, signed=True)
-    return bytearray(b"\xE9") + offset
-
-
-def convert_pattern(pattern: str | bytearray) -> bytearray:
-    if isinstance(pattern, str):
-        return bytearray.fromhex(pattern)
-    return pattern
 
 
 class ReadWriteMemory:
@@ -177,7 +150,7 @@ class ReadWriteMemory:
                 PAGE_EXECUTE_READWRITE,
                 byref(old_protect),
             ):
-                print(
+                logging.debug(
                     f"{hex(curr)} -> {hex(curr + mbi.RegionSize)} | size: {mbi.RegionSize}, protect: {hex(old_protect.value)}"
                 )
 
@@ -205,16 +178,6 @@ class ReadWriteMemory:
             curr += mbi.RegionSize
 
         return None, None, None
-
-    def read_double(self, ptr: int) -> int:
-        try:
-            rb = self.process.readByte(ptr, length=8)
-            rb = "".join([b.lstrip(r"0x").rjust(2, "0") for b in rb])
-            rb = bytearray.fromhex(rb)
-            return int(struct.unpack("d", rb)[0])
-        except Exception as e:
-            print(e)
-            return None
 
     def write(self, dest: int, value: str | bytearray) -> bool:
         bytes_w = c_size_t()
