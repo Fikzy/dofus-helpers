@@ -277,20 +277,22 @@ def jump_instruction(_from: int, _to: int) -> bytearray:
     return bytearray(b"\xE9") + offset
 
 
+def convert_pattern(pattern: str | bytearray) -> bytearray:
+    if isinstance(pattern, str):
+        return bytearray.fromhex(pattern)
+    return pattern
+
+
 class ReadWriteMemory:
 
     process: read_write_memory.Process
-    _allocations: list[int]
-    _injections_to_restore: list[tuple[int, bytearray]]
+    _allocations: list[int] = []
 
     def __init__(self, process_id: int):
         rwm = read_write_memory.ReadWriteMemory()
 
         self.process = rwm.get_process_by_id(process_id)
         self.process.open()
-
-        self._allocations = []
-        self._injections_to_restore = []
 
         atexit.register(self.release)
 
@@ -300,10 +302,6 @@ class ReadWriteMemory:
         """
 
         print("~ReadWriteMemory()")
-
-        # Restore injections
-        for ptr, buffer in self._injections_to_restore:
-            self.write(ptr, buffer)
 
         # Free up allocations
         for ptr in self._allocations:
@@ -389,6 +387,8 @@ class ReadWriteMemory:
 
             curr += mbi.RegionSize
 
+        return None, None, None
+
     def scan_mod(
         self,
         pattern: str | bytearray,
@@ -414,7 +414,7 @@ class ReadWriteMemory:
             print(e)
             return None
 
-    def write(self, dest: int, value: str | bytearray) -> c_size_t:
+    def write(self, dest: int, value: str | bytearray) -> bool:
         bytes_w = c_size_t()
         try:
             if isinstance(value, str):
@@ -431,7 +431,7 @@ class ReadWriteMemory:
             )
         except Exception as e:
             print(e)
-        return bytes_w
+        return bool(bytes_w.value)
 
     def fill(self, start: int, end: int, value: int) -> bool:
         bytes_w = c_size_t()
@@ -448,7 +448,7 @@ class ReadWriteMemory:
             )
         except Exception as e:
             print(e)
-        return bool(bytes_w)
+        return bool(bytes_w.value)
 
 
 def walk_mem_maps(h_proc: HANDLE):
