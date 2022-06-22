@@ -314,12 +314,11 @@ class ReadWriteMemory:
         pattern: str | bytearray,
         page_begin: int = 0,
         size: int = None,
-        mask: bytearray = None,
         exp_page_protect: DWORD = None,
         exp_page_size: c_size_t = None,
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, bytearray]:
         """
-        Returns address where pattern was found as well as last scanned page start
+        Returns address where pattern was found, last scanned page start and page buffer
         """
 
         if isinstance(pattern, str):
@@ -353,7 +352,8 @@ class ReadWriteMemory:
                 curr += mbi.RegionSize
                 continue
 
-            buffer = (c_ubyte * mbi.RegionSize)()
+            bytearray_buffer = bytearray(mbi.RegionSize)
+            buffer = (c_ubyte * mbi.RegionSize).from_buffer(bytearray_buffer)
 
             if VirtualProtectEx(
                 self.process.handle,
@@ -382,12 +382,10 @@ class ReadWriteMemory:
                     pointer(old_protect),
                 )
 
-                internal_addr = scan_basic(
-                    pattern, addressof(buffer), bytes_read.value, mask
-                )
+                offset = bytearray_buffer.find(pattern)
 
-                if internal_addr:
-                    return curr + (internal_addr - addressof(buffer)), curr
+                if offset != -1:
+                    return curr + offset, curr, bytearray_buffer
 
             curr += mbi.RegionSize
 
@@ -395,7 +393,6 @@ class ReadWriteMemory:
         self,
         pattern: str | bytearray,
         mod_entry: MODULEENTRY32,
-        mask: bytearray = None,
     ) -> int:
 
         if isinstance(pattern, str):
@@ -405,7 +402,6 @@ class ReadWriteMemory:
             pattern,
             cast(mod_entry.modBaseAddr, c_void_p).value,
             mod_entry.modBaseSize,
-            mask,
         )
 
     def read_double(self, ptr: int) -> int:

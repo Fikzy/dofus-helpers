@@ -116,33 +116,44 @@ class DofusScanner(ReadWriteMemory):
     def patch_autotravel(self) -> int:
 
         # DofusClientMain
-        _, p_begin = self.scan("F1 FC 87 07 F0 9E")
+        _, p_begin, p_buffer = self.scan("F1 FC 87 07 F0 9E", exp_page_size=0x13E1000)
+        print(hex(p_begin))
 
         print("DofusClientMain found")
 
         # RoleplayWorldFrame
-        ptr, p_begin = self.scan("11 10 00 00 F0 D1", page_begin=p_begin)
+        ptr = p_begin + p_buffer.find(bytes.fromhex("11 10 00 00 F0 D1"))
+        print(hex(ptr))
         self.write(ptr, "12")  # iftrue -> iffalse
-        ptr, p_begin = self.scan("11 10 00 00 F0 F8 02 60", page_begin=p_begin)
+        ptr = p_begin + p_buffer.find(bytes.fromhex("11 10 00 00 F0 F8 02 60"))
+        print(hex(ptr))
         self.write(ptr, "12")
-        ptr, p_begin = self.scan("11 10 00 00 F0 C7 09", page_begin=p_begin)
+        ptr = p_begin + p_buffer.find(bytes.fromhex("11 10 00 00 F0 C7 09"))
+        print(hex(ptr))
         self.write(ptr, "12")
 
         print("RoleplayWorldFrame patch done")
 
         # MountAutoTripManager
-        ptr, p_begin = self.scan("26 61 E6 87 01 F0 CF", page_begin=p_begin)
+        ptr = p_begin + p_buffer.find(bytes.fromhex("26 61 E6 87 01 F0 CF"))
+        print(hex(ptr))
         self.write(ptr, "27")  # pushtrue -> pushfalse
-        ptr, p_begin = self.scan("26 61 E6 87 01 F0 DA", page_begin=p_begin)
+        ptr = p_begin + p_buffer.find(bytes.fromhex("26 61 E6 87 01 F0 DA"))
+        print(hex(ptr))
         self.write(ptr, "27")
-        ptr, p_begin = self.scan("26 61 E6 87 01 F0 90", page_begin=p_begin)
+        ptr = p_begin + p_buffer.find(bytes.fromhex("26 61 E6 87 01 F0 90"))
+        print(hex(ptr))
         self.write(ptr, "27")
 
         print("MountAutoTripManager patch done")
 
         # CharacterDisplacementManager
-        start, p_begin = self.scan("F1 AA 8E 08 F0 52", page_begin=p_begin)
-        end, _ = self.scan("D0 D1 D2 D3 46 A0 BF 01 03 80 14 63 0B", page_begin=p_begin)
-        self.fill(start, end, 0x02)  # NOP
+        ptr = p_begin + p_buffer.find(bytes.fromhex("F1 AA 8E 08 F0 52"))
+        print(hex(ptr))
+        ptr2 = p_begin + p_buffer.find(
+            bytes.fromhex("D0 D1 D2 D3 46 A0 BF 01 03 80 14 63 0B")
+        )
+        print(hex(ptr2))
+        self.fill(ptr, ptr2, 0x02)  # NOP
 
         print("CharacterDisplacementManager patch done")
