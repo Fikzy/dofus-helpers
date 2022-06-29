@@ -1,11 +1,13 @@
+import argparse
 import logging
 
 import dofus_patcher
 
-logging.basicConfig(level=logging.DEBUG)
 
+def main(debug=False):
 
-def main():
+    if debug:
+        logging.basicConfig(level=logging.DEBUG)
 
     try:
         patcher = dofus_patcher.DofusPatcher()
@@ -15,11 +17,14 @@ def main():
     if not patcher.patch_autotravel():
         exit(
             "Failed to apply patch. Aborting.\n"
-            "Make sure the game on the Authentication screen."
+            "Make sure the game is on the Authentication screen."
         )
 
     print("Successfuly patched autotravel!")
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-d", "--debug", action="store_true", help="show debug info")
+    args = parser.parse_args()
+    main(debug=args.debug)

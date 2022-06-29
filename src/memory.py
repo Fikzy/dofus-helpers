@@ -1,10 +1,12 @@
 import atexit
 import ctypes
 import logging
+import re
 from ctypes import *
 from ctypes.wintypes import *
 
 import read_write_memory
+from utils import convert_pattern
 
 k32 = WinDLL("kernel32", use_last_error=True)
 
@@ -104,8 +106,7 @@ class ReadWriteMemory:
         Returns address where pattern was found, last scanned page start and page buffer
         """
 
-        if isinstance(pattern, str):
-            pattern = bytes.fromhex(pattern)
+        pattern = convert_pattern(pattern)
 
         if size is None:
             size = 0x800000000 - page_begin
@@ -165,9 +166,10 @@ class ReadWriteMemory:
                     pointer(old_protect),
                 )
 
-                offset = bytearray_buffer.find(pattern)
+                match = re.search(bytes(pattern), bytearray_buffer)
 
-                if offset != -1:
+                if match:
+                    offset = match.span()[0]
                     return curr + offset, curr, bytearray_buffer
 
             curr += mbi.RegionSize

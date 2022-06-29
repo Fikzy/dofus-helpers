@@ -1,12 +1,8 @@
 import logging
+import re
 
 from memory import ReadWriteMemory
-
-
-def convert_pattern(pattern: str | bytearray) -> bytearray:
-    if isinstance(pattern, str):
-        return bytearray.fromhex(pattern)
-    return pattern
+from utils import convert_pattern, str_to_bytearray
 
 
 class Patch:
@@ -19,7 +15,7 @@ class ReplacementPatch(Patch):
 
     def __init__(self, pattern: str, replacement: str):
         self.pattern = convert_pattern(pattern)
-        self.replacement = convert_pattern(replacement)
+        self.replacement = str_to_bytearray(replacement)
 
     def __str__(self) -> str:
         return f"{self.pattern.hex(sep=' ').upper()} | {self.replacement.hex(sep=' ').upper()}"
@@ -42,16 +38,14 @@ class Patcher(ReadWriteMemory):
         self,
         page_begin: int,
         page_buffer: bytearray,
-        pattern: str | bytearray,
+        pattern: bytearray,
     ):
-        pattern = convert_pattern(pattern)
+        match = re.search(bytes(pattern), page_buffer)
 
-        offset = page_buffer.find(pattern)
-
-        if offset == -1:
+        if not match:
             return None
 
-        return page_begin + offset
+        return page_begin + match.span()[0]
 
     def apply_replacement_patch(
         self,
