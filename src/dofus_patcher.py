@@ -18,9 +18,15 @@ PATCHES: list[Patch] = [
     ),
     ReplacementPatch("11 10 00 00 F0 * * 60 * * 46 * * * * 4F * * * * F0 * * 26", "12"),
     # MountAutoTripManager
+    # - createNextMessage
     ReplacementPatch("26 61 * * 01 F0 * * D0 62 04", "27"),
     ReplacementPatch("26 61 * * 01 F0 * * D0 62 05", "27"),
     ReplacementPatch("26 61 * * 01 F0 * * D0 62 09", "27"),
+    # - initNewTrip
+    FillNOPPatch(
+        "F0 * * D0 66 * * * 66 * * 80 * * D6 F0 * * D2 66 * * 96",
+        "F0 * * D0 26 68 * * * F0 * * 60 * * D0 66 * * * 66 * * D0",
+    ),
     # CartographyBase
     ReplacementPatch("12 * * * F0 * * D1 F0", "11"),
     # MapFlagMenuMaker
