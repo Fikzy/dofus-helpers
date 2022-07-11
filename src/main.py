@@ -1,6 +1,7 @@
 import argparse
 import ctypes
 import logging
+import sys
 
 import dofus_patcher
 
@@ -24,15 +25,16 @@ def main(debug=False):
             )
         else:
             print(e)
-        exit()
+        sys.exit()
 
     if not patcher.apply():
         if not debug:
             popup(
                 "Failed to apply patch.\n"
-                "Make sure the game is on the authentication screen."
+                "The patch may already be applied.\n"
+                "Otherwise, make sure the game is on the authentication screen."
             )
-        exit()
+        sys.exit()
 
     if debug:
         print("Success!")
