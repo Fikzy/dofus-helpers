@@ -36,6 +36,24 @@ PATCHES: list[Patch] = [
         "F1 * * * F0 * D0 30 20 80 * * 63 0C 20 80",
         "D0 D1 D2 D3 46 * * * * 80 * 63 0B",
     ),
+    # # ChangeMapBehavior
+    # FillNOPPatch(
+    #     "F0 * D0 30 EF * * * * * * F0 * 60 * 46 * * * * 60 * * 46 * * * 60 * * 87 80 * * D5 F0 * D1 D0 66 * * * 12",
+    #     "4F * * * * F0 * D0 4E * * * * F0 * 47",
+    #     end_offset=+7,
+    # ),
+    # # MoveMapBehavior
+    # FillNOPPatch(
+    #     "F0 * * D0 30 EF * * * * * * * F0 * * 60 * 46 * * * * 60 * * 46 * * * 60 * * 87 80 * * D5 F0 * * D1 D0 66 * * * 12",
+    #     "74 4F * * * * F0 * * D0 4E * * * * F0 * * 47",
+    #     end_offset=+10,
+    # ),
+    #
+    # # RoleplayMovementFrame
+    # FillNOPPatch(
+    #     "F0 * * 60 * 2C * * 46 * * * * 2C * * * 46 * * * 26 AB 2A 12 * * * 29 D0",
+    #     "F0 * * 5D * * 4A * * * 80 * * 63 * F0 * * 62 * 60 * * D1 46 * * * * 60 * * 46 * * * * 66 * * 66 * * 4F * * * * F0 * * 60 * * 46 * * * * 62 * 4F * * * F0 * * D0",
+    # ),
 ]
 
 
@@ -43,7 +61,7 @@ class DofusPatcher(Patcher):
     def __init__(self):
         super().__init__("Dofus")
 
-    def patch_autotravel(self) -> bool:
+    def apply(self) -> bool:
 
         # DofusClientMain
         _, p_begin, p_buffer = self.scan(DOFUS_CLIENT_MAIN_MARKER)

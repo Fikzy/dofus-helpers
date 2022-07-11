@@ -14,13 +14,13 @@ def main(debug=False):
     except Exception as e:
         exit(e)
 
-    if not patcher.patch_autotravel():
+    if not patcher.apply():
         exit(
             "Failed to apply patch. Aborting.\n"
             "Make sure the game is on the Authentication screen."
         )
 
-    print("Successfuly patched autotravel!")
+    print("Success!")
 
 
 if __name__ == "__main__":
