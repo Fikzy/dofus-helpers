@@ -7,6 +7,6 @@ Simple bytecode patcher for the Dofus autotravel feature:
 
 # Usage
 
-Run on each startup (between game start and character selection).
+Run on each startup (between game start and server selection).
 
 Enjoy!
