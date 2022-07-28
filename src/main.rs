@@ -1,3 +1,5 @@
+#![windows_subsystem = "windows"]
+
 pub mod patch;
 pub mod pattern;
 pub mod process;
