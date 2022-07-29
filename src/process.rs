@@ -20,8 +20,10 @@ pub struct Process {
 impl Process {
     pub fn new(process_id: DWORD) -> Result<Self, DWORD> {
         unsafe {
-            let process = OpenProcess(PROCESS_ALL_ACCESS, TRUE, process_id);
-            Ok(Process { handle: process })
+            match OpenProcess(PROCESS_ALL_ACCESS, TRUE, process_id) {
+                NULL => Err(GetLastError()),
+                process => Ok(Process { handle: process }),
+            }
         }
     }
 }
