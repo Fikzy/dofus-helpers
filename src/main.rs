@@ -10,7 +10,7 @@ use winapi::um::winuser;
 use patch::Patch;
 use pattern::Pattern;
 
-use crate::patch::{FillNOPPatch, ReplacementPatch};
+use crate::patch::{FillNOPPatch, PatchEnum, ReplacementPatch};
 
 fn main() {
     env_logger::init();
@@ -18,42 +18,44 @@ fn main() {
     let dofus_client_main_marker: Pattern =
         Pattern::new("F1 * * * F0 * * D0 30 57 2A D5 30 EF * * * * * * * 65 01 20 80 * 6D 05");
 
-    let autotravel_patches: Vec<Box<dyn Patch>> = vec![
+    let autotravel_patches: Vec<PatchEnum> = vec![
         // RoleplayWorldFrame
-        Box::new(ReplacementPatch::new(
+        ReplacementPatch::new(
             "11 10 00 00 F0 * * 60 * * 46 * * * * 4F * * * * F0 * * D0 66 * * 12 * * * F0",
             "12",
-        )),
-        Box::new(ReplacementPatch::new(
+        )
+        .into(),
+        ReplacementPatch::new(
             "11 10 00 00 F0 * * 60 * * 46 * * * * 4F * * * * F0 * * D0 66 * * 12 * * * EF",
             "12",
-        )),
-        Box::new(ReplacementPatch::new(
+        )
+        .into(),
+        ReplacementPatch::new(
             "11 10 00 00 F0 * * 60 * * 46 * * * * 4F * * * * F0 * * 26",
             "12",
-        )),
+        )
+        .into(),
         // MountAutoTripManager
         // - createNextMessage
-        Box::new(ReplacementPatch::new("26 61 * * 01 F0 * * D0 62 04", "27")),
-        Box::new(ReplacementPatch::new("26 61 * * 01 F0 * * D0 62 05", "27")),
-        Box::new(ReplacementPatch::new("26 61 * * 01 F0 * * D0 62 09", "27")),
+        ReplacementPatch::new("26 61 * * 01 F0 * * D0 62 04", "27").into(),
+        ReplacementPatch::new("26 61 * * 01 F0 * * D0 62 05", "27").into(),
+        ReplacementPatch::new("26 61 * * 01 F0 * * D0 62 09", "27").into(),
         // - initNewTrip
-        Box::new(FillNOPPatch::new(
+        FillNOPPatch::new(
             "F0 * * D0 66 * * * 66 * * 80 * * D6 F0 * * D2 66 * * 96",
             "F0 * * D0 26 68 * * * F0 * * 60 * * D0 66 * * * 66 * * D0",
-        )),
+        )
+        .into(),
         // CartographyBase
-        Box::new(ReplacementPatch::new("12 * * * F0 * * D1 F0", "11")),
+        ReplacementPatch::new("12 * * * F0 * * D1 F0", "11").into(),
         // MapFlagMenuMaker
-        Box::new(ReplacementPatch::new(
-            "12 * * * 29 62 07 82 76 2A 11",
-            "10 0C 00 00",
-        )),
+        ReplacementPatch::new("12 * * * 29 62 07 82 76 2A 11", "10 0C 00 00").into(),
         // CharacterDisplacementManager
-        Box::new(FillNOPPatch::new(
+        FillNOPPatch::new(
             "F1 * * * F0 * D0 30 20 80 * * 63 0C 20 80",
             "D0 D1 D2 D3 46 * * * * 80 * 63 0B",
-        )),
+        )
+        .into(),
     ];
 
     let process = match process::get_process_pid("Dofus.exe") {
