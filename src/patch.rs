@@ -6,6 +6,32 @@ pub trait Patch {
     fn apply(&self, scan_result: &PageScanResult, process: &Process) -> bool;
 }
 
+pub enum PatchEnum {
+    ReplacementPatch(ReplacementPatch),
+    FillNOPPatch(FillNOPPatch),
+}
+
+impl From<ReplacementPatch> for PatchEnum {
+    fn from(patch: ReplacementPatch) -> Self {
+        PatchEnum::ReplacementPatch(patch)
+    }
+}
+
+impl From<FillNOPPatch> for PatchEnum {
+    fn from(patch: FillNOPPatch) -> Self {
+        PatchEnum::FillNOPPatch(patch)
+    }
+}
+
+impl Patch for PatchEnum {
+    fn apply(&self, scan_result: &PageScanResult, process: &Process) -> bool {
+        match self {
+            PatchEnum::ReplacementPatch(patch) => patch.apply(scan_result, process),
+            PatchEnum::FillNOPPatch(patch) => patch.apply(scan_result, process),
+        }
+    }
+}
+
 pub struct ReplacementPatch {
     pub pattern: Pattern,
     pub replacement: Vec<u8>,

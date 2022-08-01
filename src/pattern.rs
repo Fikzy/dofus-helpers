@@ -7,7 +7,7 @@ pub struct Pattern {
 impl Pattern {
     pub fn new(pattern: &str) -> Self {
         let patt: String = pattern
-            .replace("?", "*")
+            .replace('?', "*")
             .split(' ')
             .map(|b| match b {
                 "*" => ".".to_string(),
@@ -24,9 +24,6 @@ impl Pattern {
     }
 
     pub fn scan(&self, data: &[u8]) -> Option<usize> {
-        match self.regex.find(data) {
-            Some(m) => Some(m.start()),
-            _ => None,
-        }
+        self.regex.find(data).map(|m| m.start())
     }
 }
