@@ -10,7 +10,7 @@ impl Pattern {
             .replace('?', "*")
             .split(' ')
             .map(|b| match b {
-                "*" => ".".to_string(),
+                "*" | "**" => ".".to_string(),
                 _ => format!("\\x{}", b),
             })
             .collect();
