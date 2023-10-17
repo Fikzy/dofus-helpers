@@ -7,6 +7,6 @@ Simple bytecode patcher for the Dofus autotravel feature:
 
 # Usage
 
-Run on each startup (between game start and server selection).
+Launch once and it will run in the background and patch any newly opened Dofus client.
 
 Enjoy!

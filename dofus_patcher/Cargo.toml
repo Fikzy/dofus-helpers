@@ -1,0 +1,10 @@
+[package]
+name = "dofus_patcher"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+hex = { workspace = true }
+log = { workspace = true }
+regex = { workspace = true }
+winapi = { workspace = true, default-features = false, features = ["errhandlingapi", "handleapi", "memoryapi", "minwindef", "ntdef", "processthreadsapi", "winnt", "winuser"] }

@@ -1,6 +1,5 @@
 use std::mem::size_of;
 
-use sysinfo::{PidExt, ProcessExt, SystemExt};
 use winapi::shared::minwindef::{DWORD, TRUE};
 use winapi::shared::ntdef::NULL;
 use winapi::um::errhandlingapi::GetLastError;
@@ -100,19 +99,5 @@ impl Process {
             }
             Err("Pattern not found.".to_string())
         }
-    }
-}
-
-pub fn get_process_pid(process_name: &str) -> Result<u32, String> {
-    let mut system = sysinfo::System::new();
-    system.refresh_all();
-
-    let mut processes: Vec<&sysinfo::Process> =
-        system.processes_by_exact_name(process_name).collect();
-
-    match processes.len() {
-        1 => Ok(processes.pop().unwrap().pid().as_u32()),
-        0 => Err(format!("Process '{process_name}' not found")),
-        _ => Err(format!("Found more than one instance of '{process_name}'")),
     }
 }

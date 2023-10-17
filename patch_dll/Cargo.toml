@@ -1,0 +1,15 @@
+[package]
+name = "patch_dll"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+dirs = { workspace = true }
+dofus_patcher = { path = "../dofus_patcher" }
+flexi_logger = { workspace = true }
+log = { workspace = true }
+notify-rust = { workspace = true }
+winapi = { workspace = true, default-features = false, features = ["winuser"] }
