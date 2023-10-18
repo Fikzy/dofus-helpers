@@ -34,6 +34,9 @@ impl Drop for GlobalHook {
         log::debug!("Dropping {:?}", self);
         unsafe {
             winuser::UnhookWindowsHookEx(self.id);
+            // Send a dummy message to ensure the dll is unloaded
+            // https://stackoverflow.com/a/54834158/15873956
+            winuser::SendNotifyMessageA(winuser::HWND_BROADCAST, winuser::WM_NULL, 0, 0);
         }
     }
 }
