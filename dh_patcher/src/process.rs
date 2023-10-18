@@ -1,5 +1,4 @@
 use std::mem::size_of;
-
 use winapi::shared::minwindef::{DWORD, TRUE};
 use winapi::shared::ntdef::NULL;
 use winapi::um::errhandlingapi::GetLastError;

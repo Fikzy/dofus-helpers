@@ -1,5 +1,5 @@
 [package]
-name = "patch_dll"
+name = "dh_dll"
 version = "1.0.0"
 edition = "2021"
 
@@ -8,8 +8,9 @@ crate-type = ["cdylib"]
 
 [dependencies]
 dirs = { workspace = true }
-dofus_patcher = { path = "../dofus_patcher" }
+dh_patcher = { path = "../dh_patcher" }
 flexi_logger = { workspace = true }
 log = { workspace = true }
 notify-rust = { workspace = true }
+dh_utils = { path = "../dh_utils" }
 winapi = { workspace = true, default-features = false, features = ["winuser"] }

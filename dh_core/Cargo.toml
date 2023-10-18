@@ -1,5 +1,5 @@
 [package]
-name = "core"
+name = "dh_core"
 version = "1.0.0"
 edition = "2021"
 build = "build.rs"
@@ -17,4 +17,5 @@ flexi_logger = { workspace = true }
 libloading = { workspace = true }
 log = { workspace = true }
 tray-item = { workspace = true }
+dh_utils = { path = "../dh_utils" }
 winapi = { workspace = true, default-features = false, features = ["windef", "winuser"] }

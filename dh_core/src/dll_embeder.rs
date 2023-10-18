@@ -2,16 +2,16 @@ use log;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::utils;
+use dh_utils;
 
 const DLL_NAME: &'static str = "dofus-helpers.dll";
 #[cfg(debug_assertions)]
-const DLL_DATA: &'static [u8] = include_bytes!("..\\..\\target\\debug\\patch_dll.dll");
+const DLL_DATA: &'static [u8] = include_bytes!("..\\..\\target\\debug\\dh_dll.dll");
 #[cfg(not(debug_assertions))]
-const DLL_DATA: &'static [u8] = include_bytes!("..\\..\\target\\release\\patch_dll.dll");
+const DLL_DATA: &'static [u8] = include_bytes!("..\\..\\target\\release\\dh_dll.dll");
 
 fn get_dll_path() -> PathBuf {
-    utils::get_app_dir().join(DLL_NAME)
+    dh_utils::get_app_dir().join(DLL_NAME)
 }
 
 pub fn generate_dll() -> String {

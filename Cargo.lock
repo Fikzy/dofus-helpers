@@ -305,19 +305,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "core"
-version = "1.0.0"
-dependencies = [
- "dirs",
- "flexi_logger",
- "libloading",
- "log",
- "tray-item",
- "winapi",
- "windres",
-]
-
-[[package]]
 name = "core-foundation"
 version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -406,6 +393,50 @@ dependencies = [
 ]
 
 [[package]]
+name = "dh_core"
+version = "1.0.0"
+dependencies = [
+ "dh_utils",
+ "dirs",
+ "flexi_logger",
+ "libloading",
+ "log",
+ "tray-item",
+ "winapi",
+ "windres",
+]
+
+[[package]]
+name = "dh_dll"
+version = "1.0.0"
+dependencies = [
+ "dh_patcher",
+ "dh_utils",
+ "dirs",
+ "flexi_logger",
+ "log",
+ "notify-rust",
+ "winapi",
+]
+
+[[package]]
+name = "dh_patcher"
+version = "1.0.0"
+dependencies = [
+ "hex",
+ "log",
+ "regex",
+ "winapi",
+]
+
+[[package]]
+name = "dh_utils"
+version = "0.1.0"
+dependencies = [
+ "dirs",
+]
+
+[[package]]
 name = "digest"
 version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -454,16 +485,6 @@ checksum = "4ebda144c4fe02d1f7ea1a7d9641b6fc6b580adcfa024ae48797ecdeb6825b4d"
 dependencies = [
  "libc",
  "redox_users",
- "winapi",
-]
-
-[[package]]
-name = "dofus_patcher"
-version = "1.0.0"
-dependencies = [
- "hex",
- "log",
- "regex",
  "winapi",
 ]
 
@@ -933,18 +954,6 @@ name = "parking"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e52c774a4c39359c1d1c52e43f73dd91a75a614652c825408eec30c95a9b2067"
-
-[[package]]
-name = "patch_dll"
-version = "1.0.0"
-dependencies = [
- "dirs",
- "dofus_patcher",
- "flexi_logger",
- "log",
- "notify-rust",
- "winapi",
-]
 
 [[package]]
 name = "pin-project-lite"

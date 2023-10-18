@@ -5,9 +5,9 @@
 
 pub mod dll_embeder;
 pub mod hook;
-pub mod utils;
 
 use crate::hook::GlobalHook;
+use dh_utils;
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
 use std::sync::mpsc;
@@ -22,7 +22,7 @@ fn main() {
         .unwrap()
         .log_to_file(
             FileSpec::default()
-                .directory(utils::get_app_dir())
+                .directory(dh_utils::get_app_dir())
                 .basename("app")
                 .suppress_timestamp(),
         )

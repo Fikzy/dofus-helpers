@@ -1,5 +1,5 @@
 [package]
-name = "dofus_patcher"
+name = "dh_patcher"
 version = "1.0.0"
 edition = "2021"
 

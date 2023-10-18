@@ -1,20 +1,11 @@
-use dirs;
 use flexi_logger::{Age, Cleanup, Criterion, FileSpec, Logger, Naming};
 use log;
 use notify_rust::Notification;
-use std::path::PathBuf;
-use std::{fs, slice};
+use std::slice;
 use winapi::{shared::windef, um::winuser};
 
-use dofus_patcher;
-
-fn get_app_dir() -> PathBuf {
-    let path = dirs::home_dir()
-        .expect("Couldn't find home directory")
-        .join(".dofus_helpers");
-    fs::create_dir_all(&path).expect("Unable to create directory");
-    path
-}
+use dh_patcher;
+use dh_utils;
 
 #[no_mangle]
 pub extern "system" fn hook_callback(n_code: i32, w_param: usize, l_param: isize) -> isize {
@@ -52,7 +43,7 @@ pub extern "system" fn hook_callback(n_code: i32, w_param: usize, l_param: isize
 
     let _logger = Logger::try_with_str("info")
         .unwrap()
-        .log_to_file(FileSpec::default().directory(get_app_dir().join("dll_logs")))
+        .log_to_file(FileSpec::default().directory(dh_utils::get_app_dir().join("dll_logs")))
         .rotate(
             Criterion::Age(Age::Day),
             Naming::Timestamps,
@@ -64,7 +55,7 @@ pub extern "system" fn hook_callback(n_code: i32, w_param: usize, l_param: isize
 
     log::info!("{} ({})", title, pid);
 
-    match dofus_patcher::patch_client(pid as u32) {
+    match dh_patcher::patch_client(pid as u32) {
         Ok(_) => {
             Notification::new()
                 .summary("Dofus Helpers")
