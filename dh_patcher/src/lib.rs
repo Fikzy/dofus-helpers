@@ -46,6 +46,12 @@ pub fn patch_client(pid: u32) -> Result<(), DofusPatcherError> {
             "F0 * * D0 26 68 * * * F0 * * 60 * * D0 66 * * * 66 * * D0",
         )
         .into(),
+        // - onRouteFound
+        ReplacementPatch::new(
+            "12 * * * F0 * * D0 27 68 * * * F0 * * D0 4F * * * * F0 * * 47 F0",
+            "11",
+        )
+        .into(),
         // CartographyBase
         ReplacementPatch::new("12 * * * F0 * * D1 F0", "11").into(),
         // MapFlagMenuMaker
