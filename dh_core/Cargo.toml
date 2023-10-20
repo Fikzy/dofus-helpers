@@ -13,9 +13,10 @@ path = "src/main.rs"
 
 [dependencies]
 dirs = { workspace = true }
+dh_utils = { path = "../dh_utils" }
+dh_dll = { path = "../dh_dll" }
 flexi_logger = { workspace = true }
 libloading = { workspace = true }
 log = { workspace = true }
 tray-item = { workspace = true }
-dh_utils = { path = "../dh_utils" }
 winapi = { workspace = true, default-features = false, features = ["windef", "winuser"] }

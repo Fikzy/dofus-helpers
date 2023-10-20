@@ -396,6 +396,7 @@ dependencies = [
 name = "dh_core"
 version = "1.0.0"
 dependencies = [
+ "dh_dll",
  "dh_utils",
  "dirs",
  "flexi_logger",
