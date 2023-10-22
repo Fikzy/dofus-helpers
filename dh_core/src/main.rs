@@ -5,17 +5,15 @@
 
 pub mod dll_embeder;
 pub mod hook;
+pub mod system_tray;
 
 use crate::hook::GlobalHook;
+use crate::system_tray::SystemTray;
 use dh_utils;
 
 use flexi_logger::{Duplicate, FileSpec, Logger};
-use std::sync::mpsc;
-use tray_item::{IconSource, TrayItem};
-
-enum Message {
-    Quit,
-}
+use native_windows_gui as nwg;
+use nwg::NativeUi;
 
 fn main() {
     let _logger = Logger::try_with_str("debug")
@@ -30,25 +28,11 @@ fn main() {
         .format(flexi_logger::detailed_format)
         .start();
 
-    let icon = IconSource::Resource("mana-potion");
-    let mut tray = TrayItem::new("Dofus Helpers", icon).unwrap();
-
-    let (tx, rx) = mpsc::sync_channel(1);
-
-    tray.add_menu_item("Quit", move || {
-        tx.send(Message::Quit).unwrap();
-    })
-    .unwrap();
-
     let dll_path = dll_embeder::generate_dll();
     let _hook = GlobalHook::new(&dll_path, "hook_callback");
     log::debug!("{:?}", _hook);
 
-    loop {
-        match rx.recv().unwrap() {
-            Message::Quit => {
-                break;
-            }
-        }
-    }
+    nwg::init().expect("Failed to init Native Windows GUI");
+    let _ui = SystemTray::build_ui(Default::default()).expect("Failed to build UI");
+    nwg::dispatch_thread_events();
 }

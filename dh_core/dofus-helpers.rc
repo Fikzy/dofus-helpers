@@ -1,0 +1,4 @@
+#define RT_MANIFEST 24
+1 RT_MANIFEST "dofus-helpers.exe.manifest"
+
+MAIN_ICON ICON "resources/mana-potion.ico"

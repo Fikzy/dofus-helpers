@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 dirs = { workspace = true }
+rust-ini = { workspace = true }

@@ -1,6 +1,6 @@
 #[cfg(windows)]
-use windres::Build;
+use embed_resource;
 
 fn main() {
-    Build::new().compile("icons.rc").unwrap();
+    embed_resource::compile("dofus-helpers.rc", embed_resource::NONE);
 }

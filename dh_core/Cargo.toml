@@ -5,7 +5,7 @@ edition = "2021"
 build = "build.rs"
 
 [build-dependencies]
-windres = "0.2.2"
+embed-resource = "2.4.0"
 
 [[bin]]
 name = "dofus-helpers"
@@ -18,5 +18,6 @@ dh_dll = { path = "../dh_dll" }
 flexi_logger = { workspace = true }
 libloading = { workspace = true }
 log = { workspace = true }
-tray-item = { workspace = true }
+native-windows-gui = { workspace = true, default-features = false, features = ["embed-resource", "tray-notification", "message-window", "menu", "cursor"] }
+rust-ini = { workspace = true }
 winapi = { workspace = true, default-features = false, features = ["windef", "winuser"] }

@@ -14,6 +14,8 @@ hex = "0.4.3"
 libloading = "0.8.1"
 log = "0.4.20"
 notify-rust = "4.9.0"
+native-windows-gui = { version = "1.0.13", default-features = false }
 regex = "1.7.3"
+rust-ini = "0.19.0"
 tray-item = "0.8.0"
 winapi = { version = "0.3.9", default-features = false }
